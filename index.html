@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gestión de clientes, reservas de mesas y eventos para un restaurante.">
+  <title>Mesa &amp; Evento — Reservas del restaurante</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+  <!-- Íconos (sprite SVG) -->
+  <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-calendario" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+    </symbol>
+    <symbol id="i-usuarios" viewBox="0 0 24 24">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+    </symbol>
+    <symbol id="i-buscar" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </symbol>
+    <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-editar" viewBox="0 0 24 24">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+    </symbol>
+    <symbol id="i-eliminar" viewBox="0 0 24 24">
+      <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/>
+    </symbol>
+    <symbol id="i-descargar" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>
+    </symbol>
+    <symbol id="i-subir" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>
+    </symbol>
+    <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-chispa" viewBox="0 0 24 24">
+      <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+    </symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+      <path d="M12 9v4M12 17h.01"/>
+    </symbol>
+    <symbol id="i-telefono" viewBox="0 0 24 24">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/>
+    </symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24">
+      <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>
+    </symbol>
+    <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></symbol>
+    <symbol id="i-ojo" viewBox="0 0 24 24">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="i-cubiertos" viewBox="0 0 24 24">
+      <path d="M4 2v7a3 3 0 0 0 3 3v10M7 2v7M10 2v7a3 3 0 0 1-3 3M17 2c-1.7 0-3 2.5-3 5.5S15.3 13 17 13v9"/>
+    </symbol>
+  </svg>
+
+  <header class="barra">
+    <div class="marca">
+      <div class="marca-logo" aria-hidden="true">
+        <svg><use href="#i-cubiertos"/></svg>
+      </div>
+      <div class="marca-texto">
+        <h1>Mesa &amp; Evento</h1>
+        <p>Reservas del restaurante</p>
+      </div>
+    </div>
+
+    <nav class="pestanas" aria-label="Secciones">
+      <button type="button" class="pestana activa" data-vista="reservas" aria-selected="true">
+        <svg class="icono"><use href="#i-calendario"/></svg>
+        <span>Reservas</span>
+        <span class="contador" id="contador-reservas">0</span>
+      </button>
+      <button type="button" class="pestana" data-vista="clientes" aria-selected="false">
+        <svg class="icono"><use href="#i-usuarios"/></svg>
+        <span>Clientes</span>
+        <span class="contador" id="contador-clientes">0</span>
+      </button>
+    </nav>
+
+    <div class="acciones-barra">
+      <span class="estado-db" id="estado-db" title="Estado del almacenamiento">
+        <span class="punto"></span>
+        <span id="estado-db-texto">Cargando…</span>
+      </span>
+      <button type="button" class="btn btn-fantasma" id="btn-exportar" title="Descargar una copia de la base de datos">
+        <svg class="icono"><use href="#i-descargar"/></svg>
+        <span class="oculto-angosto">Exportar</span>
+      </button>
+      <button type="button" class="btn btn-fantasma" id="btn-importar" title="Restaurar una copia de la base de datos">
+        <svg class="icono"><use href="#i-subir"/></svg>
+        <span class="oculto-angosto">Importar</span>
+      </button>
+      <input type="file" id="input-importar" accept=".sqlite,.db,.sqlite3,application/x-sqlite3" hidden>
+    </div>
+  </header>
+
+  <main class="contenido">
+    <div class="aviso-almacenamiento" id="aviso-almacenamiento" hidden>
+      <svg class="icono"><use href="#i-alerta"/></svg>
+      <div>
+        <strong>Los datos no se están guardando en este navegador.</strong>
+        Podés seguir usando la app, pero se perderán al cerrar la pestaña. Para guardarlos, abrí la aplicación con <code>iniciar.bat</code> o usá “Exportar” antes de salir.
+      </div>
+    </div>
+
+    <!-- ===================== VISTA RESERVAS ===================== -->
+    <section class="vista" id="vista-reservas">
+      <div class="cabecera-vista">
+        <div>
+          <h2>Reservas</h2>
+          <p>Mesas y eventos del restaurante, con su cliente asignado.</p>
+        </div>
+        <button type="button" class="btn btn-primario" id="btn-nueva-reserva">
+          <svg class="icono"><use href="#i-mas"/></svg> Nueva reserva
+        </button>
+      </div>
+
+      <div class="tarjetas">
+        <article class="tarjeta-stat">
+          <div class="stat-icono verde"><svg class="icono"><use href="#i-calendario"/></svg></div>
+          <div><span class="stat-valor" id="stat-proximas">0</span><span class="stat-etiqueta">Reservas próximas</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono terracota"><svg class="icono"><use href="#i-usuarios"/></svg></div>
+          <div><span class="stat-valor" id="stat-comensales">0</span><span class="stat-etiqueta">Comensales esperados</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono ambar"><svg class="icono"><use href="#i-chispa"/></svg></div>
+          <div><span class="stat-valor" id="stat-eventos">0</span><span class="stat-etiqueta">Eventos próximos</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono neutro"><svg class="icono"><use href="#i-hash"/></svg></div>
+          <div><span class="stat-valor" id="stat-clientes">0</span><span class="stat-etiqueta">Clientes registrados</span></div>
+        </article>
+      </div>
+
+      <section class="panel">
+        <div class="barra-filtros">
+          <div class="buscador">
+            <svg class="icono"><use href="#i-buscar"/></svg>
+            <input type="search" id="buscar-reservas" placeholder="Buscar por cliente, documento, mesa o evento…" autocomplete="off" aria-label="Buscar reservas">
+          </div>
+          <select id="filtro-tipo" aria-label="Filtrar por tipo">
+            <option value="">Todos los tipos</option>
+            <option value="mesa">Mesas</option>
+            <option value="evento">Eventos</option>
+          </select>
+          <select id="filtro-estado" aria-label="Filtrar por estado">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="confirmada">Confirmadas</option>
+            <option value="cancelada">Canceladas</option>
+          </select>
+          <select id="filtro-fecha" aria-label="Filtrar por fecha">
+            <option value="">Todas las fechas</option>
+            <option value="proximas">Próximas</option>
+            <option value="hoy">Hoy</option>
+            <option value="pasadas">Pasadas</option>
+          </select>
+          <button type="button" class="btn btn-fantasma btn-chico" id="limpiar-filtros" hidden>Limpiar filtros</button>
+        </div>
+
+        <div class="chip-filtro" id="chip-cliente" hidden>
+          <svg class="icono"><use href="#i-usuarios"/></svg>
+          <span>Reservas de <strong id="chip-cliente-nombre"></strong></span>
+          <button type="button" id="quitar-chip-cliente" aria-label="Quitar filtro de cliente"><svg class="icono"><use href="#i-cerrar"/></svg></button>
+        </div>
+
+        <div class="tabla-envoltura">
+          <table class="tabla" id="tabla-reservas">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Reservado para</th>
+                <th>Tipo</th>
+                <th class="num">Personas</th>
+                <th>Mesa / evento</th>
+                <th>Estado</th>
+                <th class="col-acciones"><span class="solo-lectores">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-reservas"></tbody>
+          </table>
+        </div>
+
+        <div class="vacio" id="vacio-reservas" hidden>
+          <div class="vacio-icono"><svg class="icono"><use href="#i-calendario"/></svg></div>
+          <h3 id="vacio-reservas-titulo">Todavía no hay reservas</h3>
+          <p id="vacio-reservas-texto">Registrá la primera reserva de mesa o evento y quedará asociada a un cliente.</p>
+          <div class="vacio-acciones" id="vacio-reservas-acciones">
+            <button type="button" class="btn btn-primario" id="btn-vacio-nueva">Nueva reserva</button>
+            <button type="button" class="btn btn-fantasma" id="btn-cargar-ejemplo">Cargar datos de ejemplo</button>
+          </div>
+          <button type="button" class="btn btn-fantasma" id="btn-vacio-limpiar" hidden>Limpiar filtros</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- ===================== VISTA CLIENTES ===================== -->
+    <section class="vista" id="vista-clientes" hidden>
+      <div class="cabecera-vista">
+        <div>
+          <h2>Clientes</h2>
+          <p>Cada cliente recibe un número único al registrarse.</p>
+        </div>
+        <button type="button" class="btn btn-primario" id="btn-nuevo-cliente">
+          <svg class="icono"><use href="#i-mas"/></svg> Nuevo cliente
+        </button>
+      </div>
+
+      <section class="panel">
+        <div class="barra-filtros">
+          <div class="buscador">
+            <svg class="icono"><use href="#i-buscar"/></svg>
+            <input type="search" id="buscar-clientes" placeholder="Buscar por nombre, documento, teléfono o número de cliente…" autocomplete="off" aria-label="Buscar clientes">
+          </div>
+          <span class="texto-resultado" id="resultado-clientes"></span>
+        </div>
+
+        <div class="tabla-envoltura">
+          <table class="tabla" id="tabla-clientes">
+            <thead>
+              <tr>
+                <th>N.º cliente</th>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Documento</th>
+                <th class="num">Reservas</th>
+                <th class="col-acciones"><span class="solo-lectores">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-clientes"></tbody>
+          </table>
+        </div>
+
+        <div class="vacio" id="vacio-clientes" hidden>
+          <div class="vacio-icono"><svg class="icono"><use href="#i-usuarios"/></svg></div>
+          <h3 id="vacio-clientes-titulo">Todavía no hay clientes</h3>
+          <p id="vacio-clientes-texto">Registrá a la primera persona con su nombre, teléfono y documento. El número de cliente se asigna solo.</p>
+          <div class="vacio-acciones" id="vacio-clientes-acciones">
+            <button type="button" class="btn btn-primario" id="btn-vacio-nuevo-cliente">Nuevo cliente</button>
+          </div>
+          <button type="button" class="btn btn-fantasma" id="btn-vacio-limpiar-clientes" hidden>Limpiar búsqueda</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- ===================== DIÁLOGO CLIENTE ===================== -->
+  <dialog class="dialogo" id="dlg-cliente">
+    <form id="form-cliente" novalidate>
+      <header class="dialogo-cabecera">
+        <div>
+          <h3 id="titulo-cliente">Nuevo cliente</h3>
+          <p id="subtitulo-cliente">Los datos quedan guardados para futuras reservas.</p>
+        </div>
+        <button type="button" class="btn-icono" data-cerrar aria-label="Cerrar"><svg class="icono"><use href="#i-cerrar"/></svg></button>
+      </header>
+      <div class="dialogo-cuerpo">
+        <div class="grid-2">
+          <div class="campo">
+            <label for="cl-nombre">Nombre</label>
+            <input type="text" id="cl-nombre" name="nombre" maxlength="60" autocomplete="off" placeholder="Ej.: Lucía" required>
+          </div>
+          <div class="campo">
+            <label for="cl-apellido">Apellido</label>
+            <input type="text" id="cl-apellido" name="apellido" maxlength="60" autocomplete="off" placeholder="Ej.: Fernández" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="campo">
+            <label for="cl-telefono">Teléfono</label>
+            <input type="tel" id="cl-telefono" name="telefono" maxlength="25" autocomplete="off" placeholder="+54 9 11 1234-5678" required>
+          </div>
+          <div class="campo">
+            <label for="cl-documento">Número de documento</label>
+            <input type="text" id="cl-documento" name="documento" maxlength="20" autocomplete="off" placeholder="30111222" required>
+          </div>
+        </div>
+        <p class="nota">
+          <svg class="icono"><use href="#i-hash"/></svg>
+          <span id="nota-numero-cliente">El número de cliente se asigna automáticamente y es único.</span>
+        </p>
+        <p class="error-form" id="error-cliente" role="alert" hidden></p>
+      </div>
+      <footer class="dialogo-pie">
+        <button type="button" class="btn btn-fantasma" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="btn-guardar-cliente">Guardar cliente</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ===================== DIÁLOGO RESERVA ===================== -->
+  <dialog class="dialogo dialogo-ancho" id="dlg-reserva">
+    <form id="form-reserva" novalidate>
+      <header class="dialogo-cabecera">
+        <div>
+          <h3 id="titulo-reserva">Nueva reserva</h3>
+          <p id="subtitulo-reserva">Asociá una mesa o un evento a un cliente.</p>
+        </div>
+        <button type="button" class="btn-icono" data-cerrar aria-label="Cerrar"><svg class="icono"><use href="#i-cerrar"/></svg></button>
+      </header>
+      <div class="dialogo-cuerpo">
+        <div class="campo">
+          <div class="campo-fila">
+            <label for="re-cliente">Cliente</label>
+            <button type="button" class="enlace" id="btn-cliente-desde-reserva">
+              <svg class="icono"><use href="#i-mas"/></svg> Nuevo cliente
+            </button>
+          </div>
+          <select id="re-cliente" required></select>
+          <p class="ayuda" id="ayuda-cliente">Si el cliente no está registrado, creá su ficha sin salir de este formulario.</p>
+        </div>
+
+        <div class="grid-2">
+          <div class="campo">
+            <label for="re-fecha">Fecha y hora de la reserva</label>
+            <input type="datetime-local" id="re-fecha" required>
+            <p class="ayuda" id="ayuda-fecha">Para qué fecha y hora se reserva.</p>
+          </div>
+          <div class="campo">
+            <label for="re-personas">Cantidad de personas</label>
+            <input type="number" id="re-personas" min="1" max="500" step="1" value="2" required>
+          </div>
+        </div>
+
+        <div class="campo">
+          <span class="etiqueta">Tipo de reserva</span>
+          <div class="segmentado" role="radiogroup" aria-label="Tipo de reserva">
+            <label class="opcion"><input type="radio" name="re-tipo" value="mesa" checked><span>Mesa</span></label>
+            <label class="opcion"><input type="radio" name="re-tipo" value="evento"><span>Evento</span></label>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="campo">
+            <label for="re-detalle" id="label-detalle">Mesa asignada (opcional)</label>
+            <input type="text" id="re-detalle" maxlength="80" placeholder="Ej.: Mesa 7">
+          </div>
+          <div class="campo">
+            <label for="re-estado">Estado</label>
+            <select id="re-estado">
+              <option value="pendiente">Pendiente</option>
+              <option value="confirmada">Confirmada</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="campo">
+          <label for="re-notas">Notas (opcional)</label>
+          <textarea id="re-notas" rows="2" maxlength="500" placeholder="Alergias, decoración, pedidos especiales…"></textarea>
+        </div>
+
+        <p class="nota" id="nota-registro">
+          <svg class="icono"><use href="#i-reloj"/></svg>
+          <span>La fecha de registro se completa automáticamente al guardar.</span>
+        </p>
+
+        <p class="error-form" id="error-reserva" role="alert" hidden></p>
+      </div>
+      <footer class="dialogo-pie">
+        <button type="button" class="btn btn-fantasma" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="btn-guardar-reserva">Guardar reserva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ===================== DIÁLOGO CONFIRMACIÓN ===================== -->
+  <dialog class="dialogo dialogo-angosto" id="dlg-confirmar">
+    <div class="dialogo-cabecera">
+      <div class="confirmar-cabecera">
+        <div class="confirmar-icono" id="confirmar-icono"><svg class="icono"><use href="#i-alerta"/></svg></div>
+        <div>
+          <h3 id="confirmar-titulo">Confirmar acción</h3>
+          <p id="confirmar-mensaje"></p>
+        </div>
+      </div>
+    </div>
+    <footer class="dialogo-pie">
+      <button type="button" class="btn btn-fantasma" id="confirmar-cancelar">Cancelar</button>
+      <button type="button" class="btn btn-peligro" id="confirmar-aceptar">Eliminar</button>
+    </footer>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="vendor/sql-wasm.js"></script>
+  <script src="vendor/sqlite-wasm-base64.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
