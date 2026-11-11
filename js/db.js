@@ -12,6 +12,10 @@
   const IDB_STORE = 'base-de-datos';
   const IDB_CLAVE = 'sqlite';
   const LS_CLAVE = 'mesa-y-evento:sqlite';
+  const LS_PENDIENTE = 'mesa-y-evento:pendiente';
+
+  const API = '/api';
+  const MOTIVO_IMPORTAR = 'importar';
 
   const TIPOS = ['mesa', 'evento'];
   const ESTADOS = ['pendiente', 'confirmada', 'cancelada'];
@@ -46,13 +50,17 @@
 
   let SQL = null;
   let db = null;
-  let almacen = 'memoria'; // 'indexeddb' | 'local' | 'memoria'
+  let almacen = 'memoria'; // 'servidor' | 'indexeddb' | 'local' | 'memoria'
   let idb = null;
   let temporizador = null;
   let guardando = null;
   let sucio = false;
   let inicializada = false;
   let advertenciaInicio = null;
+  let revision = null;      // ETag del archivo datos.sqlite
+  let conflicto = false;    // otra pestaña guardó cambios
+  let rutaArchivo = null;   // ruta del archivo informada por el servidor
+  let necesitaVolcado = false; // la copia del navegador todavía no está en disco
 
   /* ---------- utilidades ---------- */
 
@@ -87,6 +95,16 @@
         setTimeout(function () { rechazar(new Error('Tiempo de espera agotado')); }, ms);
       })
     ]);
+  }
+
+  async function pedir(url, opciones, ms) {
+    const control = new AbortController();
+    const reloj = setTimeout(function () { control.abort(); }, ms);
+    try {
+      return await fetch(url, Object.assign({ cache: 'no-store', signal: control.signal }, opciones || {}));
+    } finally {
+      clearTimeout(reloj);
+    }
   }
 
   function notificar(detalle) {
@@ -135,6 +153,22 @@
 
   async function elegirAlmacen() {
     try {
+      const respuesta = await pedir(API + '/estado', { headers: { Accept: 'application/json' } }, 1500);
+      if (respuesta.ok) {
+        const datos = await respuesta.json();
+        if (datos && datos.ruta) rutaArchivo = datos.ruta;
+        if (datos && datos.etag) revision = datos.etag;
+        almacen = 'servidor';
+        return;
+      }
+    } catch (error) {
+      // Sin servidor local: seguimos con el almacenamiento del navegador.
+    }
+    await elegirAlmacenNavegador();
+  }
+
+  async function elegirAlmacenNavegador() {
+    try {
       idb = await conTiempo(abrirIDB(), 2500);
       almacen = 'indexeddb';
       return;
@@ -151,49 +185,162 @@
     }
   }
 
+  function normalizarBytes(valor) {
+    if (!valor) return null;
+    if (valor instanceof Uint8Array) return valor;
+    if (valor instanceof ArrayBuffer) return new Uint8Array(valor);
+    if (valor && valor.buffer) return new Uint8Array(valor.buffer, valor.byteOffset, valor.byteLength);
+    return null;
+  }
+
+  function hayCambiosPendientes() {
+    try { return Boolean(localStorage.getItem(LS_PENDIENTE)); } catch (error) { return false; }
+  }
+
+  function marcarCambiosPendientes() {
+    try { localStorage.setItem(LS_PENDIENTE, String(Date.now())); } catch (error) { }
+  }
+
+  function limpiarCambiosPendientes() {
+    try { localStorage.removeItem(LS_PENDIENTE); } catch (error) { }
+  }
+
   async function leerGuardado() {
-    try {
-      if (almacen === 'indexeddb') {
-        const valor = await conTiempo(leerIDB(), 3500);
-        if (!valor) return null;
-        if (valor instanceof Uint8Array) return valor;
-        if (valor instanceof ArrayBuffer) return new Uint8Array(valor);
-        if (valor && valor.buffer) return new Uint8Array(valor.buffer, valor.byteOffset, valor.byteLength);
-        return null;
+    if (almacen === 'servidor' && !conflicto) {
+      try {
+        const respuesta = await pedir(API + '/db', {}, 4000);
+        if (respuesta.status === 404) {
+          // El archivo todavía no existe: migramos la copia del navegador, si hay.
+          necesitaVolcado = true;
+          return await leerGuardadoNavegador();
+        }
+        if (!respuesta.ok) throw new Error('El servidor respondió ' + respuesta.status);
+        revision = respuesta.headers.get('ETag') || revision;
+
+        // Si se guardó en el navegador mientras el servidor estaba caído,
+        // esa copia es más nueva que el archivo.
+        if (hayCambiosPendientes()) {
+          const espejo = await leerGuardadoNavegador();
+          if (espejo && espejo.length) {
+            necesitaVolcado = true;
+            return espejo;
+          }
+        }
+
+        const buffer = await respuesta.arrayBuffer();
+        return new Uint8Array(buffer);
+      } catch (error) {
+        console.warn('No se pudo leer datos.sqlite; se usa la copia del navegador:', error);
+        await elegirAlmacenNavegador();
       }
-      if (almacen === 'local') {
+    }
+    return await leerGuardadoNavegador();
+  }
+
+  async function leerGuardadoNavegador() {
+    try {
+      if (!idb) {
+        try { idb = await conTiempo(abrirIDB(), 2500); } catch (error) { idb = null; }
+      }
+      if (idb) {
+        const valor = await conTiempo(leerIDB(), 3500);
+        const bytes = normalizarBytes(valor);
+        if (bytes) return bytes;
+      }
+      if (window.localStorage) {
         const texto = localStorage.getItem(LS_CLAVE);
-        return texto ? base64ABytes(texto) : null;
+        if (texto) return base64ABytes(texto);
       }
     } catch (error) {
-      console.warn('No se pudo leer la base guardada:', error);
+      console.warn('No se pudo leer la base guardada en el navegador:', error);
     }
     return null;
   }
 
-  async function escribirGuardado(bytes) {
+  async function guardarEspejo(bytes) {
+    try {
+      if (!idb) {
+        try { idb = await conTiempo(abrirIDB(), 2500); } catch (error) { idb = null; }
+      }
+      if (idb) {
+        await conTiempo(escribirIDB(bytes), 5000);
+        return;
+      }
+      if (window.localStorage) localStorage.setItem(LS_CLAVE, bytesABase64(bytes));
+    } catch (error) {
+      console.warn('No se pudo actualizar la copia de respaldo en el navegador:', error);
+    }
+  }
+
+  async function pasarAAlmacenNavegador(bytes) {
+    marcarCambiosPendientes();
+    await guardarEspejo(bytes);
+    if (idb) { almacen = 'indexeddb'; return; }
+    try {
+      if (!window.localStorage) throw new Error('sin localStorage');
+      localStorage.setItem(LS_CLAVE + ':prueba', '1');
+      localStorage.removeItem(LS_CLAVE + ':prueba');
+      almacen = 'local';
+    } catch (error) {
+      almacen = 'memoria';
+    }
+  }
+
+  async function escribirGuardado(bytes, motivo) {
+    if (almacen === 'servidor') {
+      const cabeceras = { 'Content-Type': 'application/octet-stream' };
+      if (revision) cabeceras['If-Match'] = revision;
+      if (motivo) cabeceras['X-Motivo'] = motivo;
+
+      const respuesta = await pedir(API + '/db', {
+        method: 'POST',
+        headers: cabeceras,
+        body: bytes
+      }, 8000);
+
+      if (respuesta.status === 412) {
+        const error = new Error('Otra pestaña guardó cambios en la base de datos.');
+        error.conflicto = true;
+        throw error;
+      }
+      if (!respuesta.ok) {
+        let detalle = '';
+        try { detalle = await respuesta.text(); } catch (error) { }
+        throw new Error('El servidor no pudo guardar datos.sqlite (' + respuesta.status + ').' +
+          (detalle ? ' ' + detalle : ''));
+      }
+
+      const etag = respuesta.headers.get('ETag');
+      if (etag) revision = etag;
+      limpiarCambiosPendientes();
+      await guardarEspejo(bytes);
+      return;
+    }
     if (almacen === 'indexeddb') {
       await conTiempo(escribirIDB(bytes), 5000);
+      marcarCambiosPendientes();
       return;
     }
     if (almacen === 'local') {
       localStorage.setItem(LS_CLAVE, bytesABase64(bytes));
+      marcarCambiosPendientes();
       return;
     }
     throw new Error('Este navegador no permite guardar datos.');
   }
 
-  function programarGuardado() {
+  function programarGuardado(motivo) {
     sucio = true;
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(function () {
       temporizador = null;
-      guardarAhora();
+      guardarAhora(motivo);
     }, 250);
   }
 
-  function guardarAhora() {
+  function guardarAhora(motivo) {
     if (!db) return Promise.resolve();
+    if (conflicto) return Promise.resolve();
     if (temporizador) {
       clearTimeout(temporizador);
       temporizador = null;
@@ -204,10 +351,24 @@
           do {
             sucio = false;
             const bytes = db.export();
-            await escribirGuardado(bytes);
+            await escribirGuardado(bytes, motivo);
             notificar({ ok: true, almacen: almacen });
           } while (sucio);
         } catch (error) {
+          if (error && error.conflicto) {
+            conflicto = true;
+            notificar({ ok: false, almacen: almacen, conflicto: true, error: error });
+            document.dispatchEvent(new CustomEvent('db:conflicto', {
+              detail: { error: error, ruta: rutaArchivo }
+            }));
+            return;
+          }
+          if (almacen === 'servidor') {
+            // El archivo no se pudo escribir: conservamos los datos en el navegador.
+            await pasarAAlmacenNavegador(db.export());
+            notificar({ ok: false, almacen: almacen, servidor: true, error: error });
+            return;
+          }
           if (almacen !== 'memoria') almacen = 'memoria';
           notificar({ ok: false, almacen: almacen, error: error });
         } finally {
@@ -639,8 +800,9 @@
     if (db) db.close();
     db = instancia;
     advertenciaInicio = null;
+    conflicto = false;
     programarGuardado();
-    await guardarAhora();
+    await guardarAhora(MOTIVO_IMPORTAR);
   }
 
   /* ---------- inicialización ---------- */
@@ -681,6 +843,11 @@
       await guardarAhora();
     }
 
+    if (necesitaVolcado) {
+      necesitaVolcado = false;
+      await guardarAhora();
+    }
+
     inicializada = true;
   }
 
@@ -688,11 +855,21 @@
     return almacen;
   }
 
+  function hayConflicto() {
+    return conflicto;
+  }
+
+  function rutaDatos() {
+    return rutaArchivo;
+  }
+
   /* ---------- API pública ---------- */
 
   window.DB = {
     init: init,
     estadoAlmacen: estadoAlmacen,
+    hayConflicto: hayConflicto,
+    rutaDatos: rutaDatos,
     advertenciaInicio: function () { return advertenciaInicio; },
 
     guardarAhora: guardarAhora,

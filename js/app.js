@@ -192,11 +192,16 @@
     document.addEventListener('db:guardado', function (evento) {
       actualizarEstadoAlmacen();
       const detalle = evento.detail || {};
-      if (!detalle.ok && estado.ultimoAlmacen !== 'memoria') {
-        mostrarToast('No se pudieron guardar los datos en este navegador. Usá “Exportar” para conservar una copia.', 'error', 9000);
+      if (!detalle.ok && !detalle.conflicto && detalle.almacen !== 'memoria') {
+        const mensaje = detalle.servidor
+          ? 'No se pudo escribir datos.sqlite. Los cambios quedaron guardados en este navegador; revisá que iniciar.bat siga abierto.'
+          : 'No se pudieron guardar los datos en este navegador. Usá “Exportar” para conservar una copia.';
+        mostrarToast(mensaje, 'error', 9000);
       }
       estado.ultimoAlmacen = detalle.almacen || null;
     });
+
+    document.addEventListener('db:conflicto', manejarConflicto);
 
     window.addEventListener('pagehide', function () {
       if (window.DB) DB.guardarAhora();
@@ -253,18 +258,58 @@
     const chip = $('#estado-db');
     const texto = $('#estado-db-texto');
     const aviso = $('#aviso-almacenamiento');
+    const avisoConflicto = $('#aviso-conflicto');
+    const conflicto = Boolean(DB.hayConflicto && DB.hayConflicto());
+    const ruta = DB.rutaDatos && DB.rutaDatos();
+
+    if (avisoConflicto) avisoConflicto.hidden = !conflicto;
+
+    if (conflicto) {
+      chip.classList.add('advertencia');
+      chip.title = 'Otra pestaña guardó cambios en la base de datos.';
+      texto.textContent = 'Conflicto';
+      aviso.hidden = true;
+      return;
+    }
+
+    if (almacen === 'servidor') {
+      chip.classList.remove('advertencia');
+      chip.title = ruta
+        ? 'Los datos se guardan automáticamente en ' + ruta + '.'
+        : 'Los datos se guardan automáticamente en datos.sqlite.';
+      texto.textContent = 'Guardado en disco';
+      aviso.hidden = true;
+      return;
+    }
 
     if (almacen === 'indexeddb' || almacen === 'local') {
       chip.classList.remove('advertencia');
       chip.title = 'Los datos se guardan automáticamente en este navegador.';
-      texto.textContent = almacen === 'indexeddb' ? 'Guardado local' : 'Guardado local';
+      texto.textContent = 'Guardado local';
       aviso.hidden = true;
-    } else {
-      chip.classList.add('advertencia');
-      chip.title = 'Este navegador no permite guardar los datos de forma automática.';
-      texto.textContent = 'Solo memoria';
-      aviso.hidden = false;
+      return;
     }
+
+    chip.classList.add('advertencia');
+    chip.title = 'Este navegador no permite guardar los datos de forma automática.';
+    texto.textContent = 'Solo memoria';
+    aviso.hidden = false;
+  }
+
+  let avisoConflictoMostrado = false;
+
+  function manejarConflicto() {
+    actualizarEstadoAlmacen();
+    if (avisoConflictoMostrado) return;
+    avisoConflictoMostrado = true;
+    abrirConfirmacion({
+      titulo: 'La base cambió en otra pestaña',
+      mensaje: 'Otra pestaña guardó cambios en datos.sqlite. Para no pisarlos, esta pestaña dejó de guardar. ' +
+        'Si querés conservar lo que hiciste acá, usá “Exportar” y después recargá la página.',
+      textoAceptar: 'Recargar',
+      peligro: false,
+      alAceptar: function () { window.location.reload(); }
+    });
   }
 
   /* ---------- filtros ---------- */
