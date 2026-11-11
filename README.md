@@ -2,8 +2,10 @@
 
 Aplicación para administrar **clientes**, **reservas de mesas** y **eventos** de un restaurante.
 
-Los datos se guardan en una base de datos **SQLite real** que funciona dentro del navegador
-(SQLite compilado a WebAssembly). No hace falta instalar nada.
+Los datos se guardan en una base de datos **SQLite real** dentro de un archivo local,
+`datos.sqlite`, que crea la propia aplicación. El motor de SQLite (compilado a WebAssembly)
+funciona dentro del navegador y el servidor local se encarga de escribir el archivo en disco.
+No hace falta instalar nada.
 
 ---
 
@@ -60,25 +62,52 @@ clientes registrados.
 
 ---
 
-## Copias de seguridad
+## Dónde viven los datos y copias de seguridad
 
-Los datos viven en el navegador. Para no depender de eso:
+La base de datos es un archivo SQLite normal, **`datos.sqlite`**, que se crea al lado de
+`iniciar.bat`. Se guarda automáticamente después de cada cambio, sin apretar ningún botón, y
+se puede abrir con cualquier herramienta de SQLite (DB Browser for SQLite, DBeaver, `sqlite3`).
+
+```
+pryctReserva\
+├── datos.sqlite          Base de datos (se crea sola)
+├── respaldos\
+│   ├── diarios\          Una copia por día, se conservan 90
+│   ├── recientes\        Una cada 15 minutos, se conservan 60
+│   └── importaciones\    Copia previa a cada restauración, se conservan 20
+```
+
+- Las copias se crean **antes** de escribir y solo si el contenido cambió.
+- La copia diaria guarda el estado con el que cerró el día anterior.
+- Mientras la app está abierta, además, se mantiene una copia en el navegador (IndexedDB) como
+  respaldo inmediato. Si el servidor local se cierra por error, la app avisa y sigue guardando
+  ahí hasta que vuelvas a abrirla con `iniciar.bat`.
+
+### Exportar e importar
 
 - **Exportar**: descarga un archivo `mesa-y-evento-AAAA-MM-DD.sqlite` con toda la base.
-- **Importar**: reemplaza la base actual por el contenido de un archivo `.sqlite` exportado antes.
+- **Importar**: reemplaza la base actual por el contenido de un archivo `.sqlite`. Antes de
+  reemplazarla se guarda una copia automática en `respaldos\importaciones`.
 
-El archivo exportado se puede abrir con cualquier herramienta de SQLite (DB Browser for SQLite,
-DBeaver, etc.).
+Para restaurar un respaldo, usá **Importar** y elegí el archivo correspondiente de la carpeta
+`respaldos`. No hace falta copiar archivos a mano.
 
-> **Importante:** usá la aplicación en una sola pestaña a la vez. Si la abrís en dos pestañas,
-> cada una trabaja con su propia copia en memoria y la última que guarde reemplaza a la otra.
+> **Una sola pestaña a la vez.** Si abrís la app en dos pestañas, la segunda que intente guardar
+> recibe un aviso de conflicto y deja de escribir para no pisar los cambios de la otra. Recargá
+> la página para continuar desde la versión más reciente.
+
+### Abrir sin el servidor
+
+Si abrís `index.html` con doble clic, la app funciona pero guarda solo en el navegador
+(IndexedDB), como antes. El archivo `datos.sqlite` y los respaldos automáticos requieren
+`iniciar.bat`.
 
 ---
 
 ## Estructura del proyecto
 
 ```
-Proyecto predeterminado/
+pryctReserva/
 ├── index.html                 Interfaz
 ├── css/estilos.css            Estilos
 ├── js/db.js                   Base de datos SQLite, validaciones y respaldo
@@ -88,7 +117,9 @@ Proyecto predeterminado/
 │   ├── sql-wasm.wasm          Binario de SQLite
 │   └── sqlite-wasm-base64.js  Binario incrustado (permite abrir sin servidor)
 ├── iniciar.bat                Inicia el servidor local y abre el navegador
-├── iniciar.ps1                Servidor local (PowerShell)
+├── iniciar.ps1                Servidor local: archivos, API de guardado y respaldos
+├── datos.sqlite               Base de datos (se crea sola)
+├── respaldos/                 Copias automáticas (se crea sola)
 └── README.md
 ```
 
