@@ -58,6 +58,18 @@
     <symbol id="i-cubiertos" viewBox="0 0 24 24">
       <path d="M4 2v7a3 3 0 0 0 3 3v10M7 2v7M10 2v7a3 3 0 0 1-3 3M17 2c-1.7 0-3 2.5-3 5.5S15.3 13 17 13v9"/>
     </symbol>
+    <symbol id="i-combo" viewBox="0 0 24 24">
+      <path d="M5.5 8h13l-1.2 12.1a2 2 0 0 1-2 1.9H8.7a2 2 0 0 1-2-1.9Z"/>
+      <path d="M9 8a3 3 0 0 1 6 0"/>
+      <path d="M9 13.5h6"/>
+    </symbol>
+    <symbol id="i-dinero" viewBox="0 0 24 24">
+      <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>
+      <path d="M6 9.5v5M18 9.5v5"/>
+    </symbol>
+    <symbol id="i-transferencia" viewBox="0 0 24 24">
+      <path d="M4 7h15M15 3l4 4-4 4"/><path d="M20 17H5M9 21l-4-4 4-4"/>
+    </symbol>
   </svg>
 
   <header class="barra">
@@ -77,10 +89,20 @@
         <span>Reservas</span>
         <span class="contador" id="contador-reservas">0</span>
       </button>
+      <button type="button" class="pestana" data-vista="pagos" aria-selected="false">
+        <svg class="icono"><use href="#i-dinero"/></svg>
+        <span>Pagos</span>
+        <span class="contador" id="contador-pagos">0</span>
+      </button>
       <button type="button" class="pestana" data-vista="clientes" aria-selected="false">
         <svg class="icono"><use href="#i-usuarios"/></svg>
         <span>Clientes</span>
         <span class="contador" id="contador-clientes">0</span>
+      </button>
+      <button type="button" class="pestana" data-vista="combos" aria-selected="false">
+        <svg class="icono"><use href="#i-combo"/></svg>
+        <span>Combos</span>
+        <span class="contador" id="contador-combos">0</span>
       </button>
     </nav>
 
@@ -189,8 +211,10 @@
                 <th>Reservado para</th>
                 <th>Tipo</th>
                 <th class="num">Personas</th>
+                <th class="num">Combos</th>
                 <th>Mesa / evento</th>
                 <th>Estado</th>
+                <th>Pago</th>
                 <th class="col-acciones"><span class="solo-lectores">Acciones</span></th>
               </tr>
             </thead>
@@ -207,6 +231,51 @@
             <button type="button" class="btn btn-fantasma" id="btn-cargar-ejemplo">Cargar datos de ejemplo</button>
           </div>
           <button type="button" class="btn btn-fantasma" id="btn-vacio-limpiar" hidden>Limpiar filtros</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- ===================== VISTA PAGOS ===================== -->
+    <section class="vista" id="vista-pagos" hidden>
+      <div class="cabecera-vista">
+        <div>
+          <h2>Pagos</h2>
+          <p>Reservas pagadas, agrupadas por la fecha en que se registró el pago.</p>
+        </div>
+        <button type="button" class="btn btn-fantasma" id="btn-pagos-ir-reservas">
+          <svg class="icono"><use href="#i-calendario"/></svg> Ver reservas
+        </button>
+      </div>
+
+      <div class="tarjetas">
+        <article class="tarjeta-stat">
+          <div class="stat-icono verde"><svg class="icono"><use href="#i-dinero"/></svg></div>
+          <div><span class="stat-valor" id="pago-stat-total">$0</span><span class="stat-etiqueta">Total cobrado</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono terracota"><svg class="icono"><use href="#i-transferencia"/></svg></div>
+          <div><span class="stat-valor" id="pago-stat-transferencia">$0</span><span class="stat-etiqueta">En transferencia</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono ambar"><svg class="icono"><use href="#i-dinero"/></svg></div>
+          <div><span class="stat-valor" id="pago-stat-efectivo">$0</span><span class="stat-etiqueta">En efectivo</span></div>
+        </article>
+        <article class="tarjeta-stat">
+          <div class="stat-icono neutro"><svg class="icono"><use href="#i-check"/></svg></div>
+          <div><span class="stat-valor" id="pago-stat-reservas">0</span><span class="stat-etiqueta">Reservas pagadas</span></div>
+        </article>
+      </div>
+
+      <div class="lista-pagos" id="lista-pagos"></div>
+
+      <section class="panel" id="vacio-pagos" hidden>
+        <div class="vacio">
+          <div class="vacio-icono"><svg class="icono"><use href="#i-dinero"/></svg></div>
+          <h3>Todavía no hay pagos registrados</h3>
+          <p>Entrá a una reserva y usá el botón de pago para marcarla como pagada por transferencia, en efectivo o en parcialidades.</p>
+          <div class="vacio-acciones">
+            <button type="button" class="btn btn-primario" id="btn-vacio-ir-reservas">Ir a reservas</button>
+          </div>
         </div>
       </section>
     </section>
@@ -256,6 +325,53 @@
             <button type="button" class="btn btn-primario" id="btn-vacio-nuevo-cliente">Nuevo cliente</button>
           </div>
           <button type="button" class="btn btn-fantasma" id="btn-vacio-limpiar-clientes" hidden>Limpiar búsqueda</button>
+        </div>
+      </section>
+    </section>
+    <!-- ===================== VISTA COMBOS ===================== -->
+    <section class="vista" id="vista-combos" hidden>
+      <div class="cabecera-vista">
+        <div>
+          <h2>Combos</h2>
+          <p>Comidas que se pueden agregar a una reserva, con su precio por unidad.</p>
+        </div>
+        <button type="button" class="btn btn-primario" id="btn-nuevo-combo">
+          <svg class="icono"><use href="#i-mas"/></svg> Nuevo combo
+        </button>
+      </div>
+
+      <section class="panel">
+        <div class="barra-filtros">
+          <div class="buscador">
+            <svg class="icono"><use href="#i-buscar"/></svg>
+            <input type="search" id="buscar-combos" placeholder="Buscar por nombre o por lo que incluye…" autocomplete="off" aria-label="Buscar combos">
+          </div>
+          <span class="texto-resultado" id="resultado-combos"></span>
+        </div>
+
+        <div class="tabla-envoltura">
+          <table class="tabla" id="tabla-combos">
+            <thead>
+              <tr>
+                <th>Combo</th>
+                <th>Incluye</th>
+                <th class="num">Precio</th>
+                <th class="num">En reservas</th>
+                <th class="col-acciones"><span class="solo-lectores">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-combos"></tbody>
+          </table>
+        </div>
+
+        <div class="vacio" id="vacio-combos" hidden>
+          <div class="vacio-icono"><svg class="icono"><use href="#i-combo"/></svg></div>
+          <h3 id="vacio-combos-titulo">Todavía no hay combos</h3>
+          <p id="vacio-combos-texto">Creá el primer combo con su nombre, lo que incluye y el precio por unidad. Después vas a poder sumarlo a cualquier reserva.</p>
+          <div class="vacio-acciones" id="vacio-combos-acciones">
+            <button type="button" class="btn btn-primario" id="btn-vacio-nuevo-combo">Nuevo combo</button>
+          </div>
+          <button type="button" class="btn btn-fantasma" id="btn-vacio-limpiar-combos" hidden>Limpiar búsqueda</button>
         </div>
       </section>
     </section>
@@ -367,6 +483,26 @@
           <textarea id="re-notas" rows="2" maxlength="500" placeholder="Alergias, decoración, pedidos especiales…"></textarea>
         </div>
 
+        <div class="campo">
+          <div class="campo-fila">
+            <span class="etiqueta">Combos de comida (opcional)</span>
+            <button type="button" class="enlace" id="btn-combo-desde-reserva">
+              <svg class="icono"><use href="#i-mas"/></svg> Nuevo combo
+            </button>
+          </div>
+          <div class="fila-combo">
+            <select id="re-combo" aria-label="Combo para agregar"></select>
+            <input type="number" id="re-combo-cantidad" min="1" max="500" step="1" value="1" aria-label="Cantidad del combo">
+            <button type="button" class="btn btn-fantasma btn-chico" id="btn-agregar-combo">Agregar</button>
+          </div>
+          <div class="lista-combos" id="lista-combos-reserva"></div>
+          <div class="total-combos" id="total-combos" hidden>
+            <span>Total de combos</span>
+            <strong id="total-combos-valor">$0</strong>
+          </div>
+          <p class="ayuda" id="ayuda-combos">Los combos se cobran por unidad. La cantidad se sugiere según los comensales.</p>
+        </div>
+
         <p class="nota" id="nota-registro">
           <svg class="icono"><use href="#i-reloj"/></svg>
           <span>La fecha de registro se completa automáticamente al guardar.</span>
@@ -377,6 +513,103 @@
       <footer class="dialogo-pie">
         <button type="button" class="btn btn-fantasma" data-cerrar>Cancelar</button>
         <button type="submit" class="btn btn-primario" id="btn-guardar-reserva">Guardar reserva</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ===================== DIÁLOGO COMBO ===================== -->
+  <dialog class="dialogo" id="dlg-combo">
+    <form id="form-combo" novalidate>
+      <header class="dialogo-cabecera">
+        <div>
+          <h3 id="titulo-combo">Nuevo combo</h3>
+          <p id="subtitulo-combo">Agregá una comida que se pueda sumar a las reservas.</p>
+        </div>
+        <button type="button" class="btn-icono" data-cerrar aria-label="Cerrar"><svg class="icono"><use href="#i-cerrar"/></svg></button>
+      </header>
+      <div class="dialogo-cuerpo">
+        <div class="grid-2">
+          <div class="campo">
+            <label for="co-nombre">Nombre del combo</label>
+            <input type="text" id="co-nombre" name="nombre" maxlength="60" autocomplete="off" placeholder="Ej.: Combo Andino" required>
+          </div>
+          <div class="campo">
+            <label for="co-precio">Precio por unidad</label>
+            <input type="text" id="co-precio" name="precio" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="Ej.: 9800" required>
+            <p class="ayuda">Podés escribir 9800 o 9.800,50.</p>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="co-contenido">Qué incluye</label>
+          <textarea id="co-contenido" rows="3" maxlength="200" placeholder="Ej.: Milanesa de ternera, papas rústicas y gaseosa"></textarea>
+        </div>
+        <p class="nota">
+          <svg class="icono"><use href="#i-reloj"/></svg>
+          <span>Cada reserva guarda el precio del momento en que se cargó, así que podés actualizar el precio del combo sin cambiar reservas viejas.</span>
+        </p>
+        <p class="error-form" id="error-combo" role="alert" hidden></p>
+      </div>
+      <footer class="dialogo-pie">
+        <button type="button" class="btn btn-fantasma" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="btn-guardar-combo">Guardar combo</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ===================== DIÁLOGO PAGO ===================== -->
+  <dialog class="dialogo dialogo-ancho" id="dlg-pago">
+    <form id="form-pago" novalidate>
+      <header class="dialogo-cabecera">
+        <div>
+          <h3 id="titulo-pago">Registrar pago</h3>
+          <p id="subtitulo-pago">Marcá la reserva como pagada e indicá cómo se entregó el dinero.</p>
+        </div>
+        <button type="button" class="btn-icono" data-cerrar aria-label="Cerrar"><svg class="icono"><use href="#i-cerrar"/></svg></button>
+      </header>
+      <div class="dialogo-cuerpo">
+        <div class="resumen-pago" id="resumen-pago"></div>
+
+        <div class="grid-2">
+          <div class="campo">
+            <label for="pa-fecha">Fecha y hora del pago</label>
+            <input type="datetime-local" id="pa-fecha" required>
+            <p class="ayuda">Podés registrar un pago de otro día.</p>
+          </div>
+          <div class="campo">
+            <span class="etiqueta">Forma de pago</span>
+            <div class="segmentado" role="radiogroup" aria-label="Forma de pago">
+              <label class="opcion"><input type="radio" name="pa-forma" value="transferencia" checked><span>Transferencia</span></label>
+              <label class="opcion"><input type="radio" name="pa-forma" value="efectivo"><span>Efectivo</span></label>
+              <label class="opcion"><input type="radio" name="pa-forma" value="mixto"><span>Mixto</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="campo">
+            <label for="pa-transferencia">Entregado en transferencia</label>
+            <input type="text" id="pa-transferencia" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="0">
+          </div>
+          <div class="campo">
+            <label for="pa-efectivo">Entregado en efectivo</label>
+            <input type="text" id="pa-efectivo" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="0">
+          </div>
+        </div>
+
+        <div class="total-combos total-pago" id="total-pago">
+          <span>Total del pago</span>
+          <strong id="total-pago-valor">$0</strong>
+        </div>
+
+        <p class="ayuda-pago" id="ayuda-pago"></p>
+
+        <p class="error-form" id="error-pago" role="alert" hidden></p>
+
+        <button type="button" class="btn btn-fantasma btn-quitar-pago" id="btn-quitar-pago" hidden>Quitar pago</button>
+      </div>
+      <footer class="dialogo-pie">
+        <button type="button" class="btn btn-fantasma" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="btn-guardar-pago">Guardar pago</button>
       </footer>
     </form>
   </dialog>

@@ -46,6 +46,38 @@
 
     CREATE INDEX IF NOT EXISTS idx_reservas_cliente ON reservas (id_cliente);
     CREATE INDEX IF NOT EXISTS idx_reservas_fecha   ON reservas (fecha_reserva);
+
+    CREATE TABLE IF NOT EXISTS combos (
+      id_combo  INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre    TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      contenido TEXT NOT NULL DEFAULT '',
+      precio    REAL NOT NULL CHECK (precio >= 0),
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS reserva_combos (
+      id_reserva      INTEGER NOT NULL,
+      id_combo        INTEGER NOT NULL,
+      cantidad        INTEGER NOT NULL CHECK (cantidad BETWEEN 1 AND 500),
+      precio_unitario REAL NOT NULL CHECK (precio_unitario >= 0),
+      PRIMARY KEY (id_reserva, id_combo),
+      FOREIGN KEY (id_reserva) REFERENCES reservas (id_reserva) ON DELETE CASCADE,
+      FOREIGN KEY (id_combo) REFERENCES combos (id_combo)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_reserva_combos_combo ON reserva_combos (id_combo);
+
+    CREATE TABLE IF NOT EXISTS pagos (
+      id_pago             INTEGER PRIMARY KEY AUTOINCREMENT,
+      id_reserva          INTEGER NOT NULL UNIQUE,
+      fecha_pago          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+      monto_efectivo      REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
+      FOREIGN KEY (id_reserva) REFERENCES reservas (id_reserva) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pagos_fecha ON pagos (fecha_pago);
   `;
 
   let SQL = null;
@@ -70,6 +102,12 @@
 
   function nroCliente(id) {
     return '#' + String(id).padStart(4, '0');
+  }
+
+  function redondearPrecio(valor) {
+    const numero = Number(valor);
+    if (!Number.isFinite(numero)) return NaN;
+    return Math.round((numero + Number.EPSILON) * 100) / 100;
   }
 
   function base64ABytes(b64) {
@@ -329,6 +367,13 @@
     throw new Error('Este navegador no permite guardar datos.');
   }
 
+  function exportarBytes() {
+    // sql.js cierra y reabre la conexión al exportar: hay que reactivar las claves foráneas.
+    const bytes = db.export();
+    try { db.run('PRAGMA foreign_keys = ON;'); } catch (error) { }
+    return bytes;
+  }
+
   function programarGuardado(motivo) {
     sucio = true;
     if (temporizador) clearTimeout(temporizador);
@@ -350,7 +395,7 @@
         try {
           do {
             sucio = false;
-            const bytes = db.export();
+            const bytes = exportarBytes();
             await escribirGuardado(bytes, motivo);
             notificar({ ok: true, almacen: almacen });
           } while (sucio);
@@ -365,7 +410,7 @@
           }
           if (almacen === 'servidor') {
             // El archivo no se pudo escribir: conservamos los datos en el navegador.
-            await pasarAAlmacenNavegador(db.export());
+            await pasarAAlmacenNavegador(exportarBytes());
             notificar({ ok: false, almacen: almacen, servidor: true, error: error });
             return;
           }
@@ -495,6 +540,152 @@
     };
   }
 
+  /* ---------- combos ---------- */
+
+  const PRECIO_MAXIMO = 10000000;
+
+  function validarCombo(datos) {
+    const nombre = limpiar(datos && datos.nombre).slice(0, 60);
+    const contenido = limpiar(datos && datos.contenido).slice(0, 200);
+    const precio = redondearPrecio(datos && datos.precio);
+
+    if (!nombre) throw new Error('Ingresá el nombre del combo.');
+    if (nombre.length < 2) throw new Error('El nombre del combo debe tener al menos 2 caracteres.');
+    if (/[\u0000-\u001f\u007f]/.test(nombre)) throw new Error('El nombre del combo tiene caracteres no permitidos.');
+
+    if (!Number.isFinite(precio)) throw new Error('Ingresá el precio del combo.');
+    if (precio < 0) throw new Error('El precio del combo no puede ser negativo.');
+    if (precio > PRECIO_MAXIMO) throw new Error('El precio del combo supera el máximo permitido.');
+
+    return { nombre: nombre, contenido: contenido, precio: precio };
+  }
+
+  function listarCombos(busqueda) {
+    const texto = limpiar(busqueda).toLowerCase();
+    const parametros = [];
+    let donde = '';
+    if (texto) {
+      const patron = '%' + texto + '%';
+      donde = "WHERE (LOWER(c.nombre) LIKE ? OR LOWER(c.contenido) LIKE ?)";
+      parametros.push(patron, patron);
+    }
+    return filas(`
+      SELECT
+        c.*,
+        (SELECT COUNT(*) FROM reserva_combos rc WHERE rc.id_combo = c.id_combo) AS usos
+      FROM combos c
+      ${donde}
+      ORDER BY c.nombre COLLATE NOCASE
+    `, parametros);
+  }
+
+  function obtenerCombo(id) {
+    return fila('SELECT * FROM combos WHERE id_combo = ?', [Number(id)]);
+  }
+
+  function contarReservasConCombo(id) {
+    const resultado = fila('SELECT COUNT(*) AS n FROM reserva_combos WHERE id_combo = ?', [Number(id)]);
+    return resultado ? Number(resultado.n) : 0;
+  }
+
+  function crearCombo(datos) {
+    const limpio = validarCombo(datos);
+    const existente = fila('SELECT id_combo FROM combos WHERE nombre = ? COLLATE NOCASE', [limpio.nombre]);
+    if (existente) {
+      throw new Error('Ya existe un combo llamado “' + limpio.nombre + '”. Elegí otro nombre.');
+    }
+    ejecutar(
+      'INSERT INTO combos (nombre, contenido, precio) VALUES (?, ?, ?)',
+      [limpio.nombre, limpio.contenido, limpio.precio]
+    );
+    return ultimoId();
+  }
+
+  function actualizarCombo(id, datos) {
+    const numero = Number(id);
+    if (!obtenerCombo(numero)) throw new Error('El combo ya no existe.');
+    const limpio = validarCombo(datos);
+    const existente = fila('SELECT id_combo FROM combos WHERE nombre = ? COLLATE NOCASE AND id_combo <> ?', [limpio.nombre, numero]);
+    if (existente) {
+      throw new Error('Ya existe un combo llamado “' + limpio.nombre + '”. Elegí otro nombre.');
+    }
+    ejecutar(
+      'UPDATE combos SET nombre = ?, contenido = ?, precio = ? WHERE id_combo = ?',
+      [limpio.nombre, limpio.contenido, limpio.precio, numero]
+    );
+    return numero;
+  }
+
+  function eliminarCombo(id) {
+    const numero = Number(id);
+    if (!obtenerCombo(numero)) throw new Error('El combo ya no existe.');
+    const total = contarReservasConCombo(numero);
+    if (total > 0) {
+      throw new Error(
+        'Este combo aparece en ' + total + ' reserva' + (total === 1 ? '' : 's') +
+        '. Quitalo de esas reservas antes de eliminarlo (podés editar el combo para marcarlo de otra forma).'
+      );
+    }
+    ejecutar('DELETE FROM combos WHERE id_combo = ?', [numero]);
+  }
+
+  function validarCombosReserva(items) {
+    const origen = Array.isArray(items) ? items : [];
+    const limpios = [];
+    const vistos = Object.create(null);
+
+    for (let i = 0; i < origen.length; i++) {
+      const item = origen[i] || {};
+      const idCombo = Number(item.id_combo);
+      if (!Number.isInteger(idCombo) || idCombo <= 0) {
+        throw new Error('Hay un combo inválido en la reserva. Quitalo y agregalo de nuevo.');
+      }
+      if (vistos[idCombo]) {
+        throw new Error('El mismo combo está repetido en la reserva. Usá una sola línea y aumentá la cantidad.');
+      }
+      vistos[idCombo] = true;
+
+      const combo = fila('SELECT id_combo, precio FROM combos WHERE id_combo = ?', [idCombo]);
+      if (!combo) throw new Error('Uno de los combos de la reserva ya no existe. Actualizá la lista e intentá de nuevo.');
+
+      const cantidad = Number(item.cantidad);
+      if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 500) {
+        throw new Error('La cantidad de cada combo debe ser un número entero entre 1 y 500.');
+      }
+
+      const sinPrecio = item.precio_unitario === undefined || item.precio_unitario === null || item.precio_unitario === '';
+      const precio = sinPrecio ? Number(combo.precio) : redondearPrecio(item.precio_unitario);
+      if (!Number.isFinite(precio) || precio < 0 || precio > PRECIO_MAXIMO) {
+        throw new Error('El precio por unidad de un combo no es válido.');
+      }
+
+      limpios.push({ id_combo: idCombo, cantidad: cantidad, precio_unitario: precio });
+    }
+
+    return limpios;
+  }
+
+  function guardarCombosDeReserva(idReserva, combos) {
+    db.run('DELETE FROM reserva_combos WHERE id_reserva = ?', [Number(idReserva)]);
+    for (let i = 0; i < combos.length; i++) {
+      const combo = combos[i];
+      db.run(
+        'INSERT INTO reserva_combos (id_reserva, id_combo, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
+        [Number(idReserva), combo.id_combo, combo.cantidad, combo.precio_unitario]
+      );
+    }
+  }
+
+  function combosDeReserva(id) {
+    return filas(`
+      SELECT rc.id_combo, rc.cantidad, rc.precio_unitario, c.nombre, c.contenido
+      FROM reserva_combos rc
+      JOIN combos c ON c.id_combo = rc.id_combo
+      WHERE rc.id_reserva = ?
+      ORDER BY c.nombre COLLATE NOCASE
+    `, [Number(id)]);
+  }
+
   /* ---------- clientes ---------- */
 
   function listarClientes(busqueda) {
@@ -621,7 +812,24 @@
         c.nombre,
         c.apellido,
         c.telefono,
-        c.documento
+        c.documento,
+        (SELECT COALESCE(SUM(rc.cantidad), 0)
+           FROM reserva_combos rc WHERE rc.id_reserva = r.id_reserva) AS combos_cantidad,
+        (SELECT COALESCE(SUM(rc.cantidad * rc.precio_unitario), 0)
+           FROM reserva_combos rc WHERE rc.id_reserva = r.id_reserva) AS combos_total,
+        (SELECT p.id_pago FROM pagos p WHERE p.id_reserva = r.id_reserva) AS id_pago,
+        (SELECT p.fecha_pago FROM pagos p WHERE p.id_reserva = r.id_reserva) AS pago_fecha,
+        (SELECT p.monto_transferencia FROM pagos p WHERE p.id_reserva = r.id_reserva) AS pago_transferencia,
+        (SELECT p.monto_efectivo FROM pagos p WHERE p.id_reserva = r.id_reserva) AS pago_efectivo,
+        (SELECT p.monto_transferencia + p.monto_efectivo FROM pagos p WHERE p.id_reserva = r.id_reserva) AS pago_total,
+        (SELECT GROUP_CONCAT(t.linea, ' · ')
+           FROM (
+             SELECT rc.cantidad || '× ' || cb.nombre AS linea
+             FROM reserva_combos rc
+             JOIN combos cb ON cb.id_combo = rc.id_combo
+             WHERE rc.id_reserva = r.id_reserva
+             ORDER BY cb.nombre COLLATE NOCASE
+           ) t) AS combos_detalle
       FROM reservas r
       JOIN clientes c ON c.id_cliente = r.id_cliente
       ${donde}
@@ -651,25 +859,45 @@
         (SELECT COUNT(*) FROM reservas
           WHERE tipo = 'evento' AND estado <> 'cancelada' AND datetime(fecha_reserva) >= datetime('now','localtime')) AS eventos,
         (SELECT COUNT(*) FROM clientes) AS clientes,
-        (SELECT COUNT(*) FROM reservas) AS reservas
+        (SELECT COUNT(*) FROM reservas) AS reservas,
+        (SELECT COUNT(*) FROM combos) AS combos,
+        (SELECT COUNT(*) FROM pagos) AS pagos,
+        (SELECT COALESCE(SUM(rc.cantidad), 0) FROM reserva_combos rc
+           JOIN reservas r ON r.id_reserva = rc.id_reserva
+          WHERE r.estado <> 'cancelada' AND datetime(r.fecha_reserva) >= datetime('now','localtime')) AS combos_proximos
     `) || {};
     return {
       proximas: Number(resultado.proximas || 0),
       comensales: Number(resultado.comensales || 0),
       eventos: Number(resultado.eventos || 0),
       clientes: Number(resultado.clientes || 0),
-      reservas: Number(resultado.reservas || 0)
+      reservas: Number(resultado.reservas || 0),
+      combos: Number(resultado.combos || 0),
+      pagos: Number(resultado.pagos || 0),
+      combos_proximos: Number(resultado.combos_proximos || 0)
     };
   }
 
   function crearReserva(datos) {
     const limpio = validarReserva(datos);
-    ejecutar(
-      `INSERT INTO reservas (id_cliente, fecha_reserva, tipo, personas, detalle, estado, notas, creada_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))`,
-      [limpio.id_cliente, limpio.fecha_reserva, limpio.tipo, limpio.personas, limpio.detalle, limpio.estado, limpio.notas]
-    );
-    return ultimoId();
+    const combos = validarCombosReserva(datos && datos.combos);
+
+    db.run('BEGIN');
+    try {
+      db.run(
+        `INSERT INTO reservas (id_cliente, fecha_reserva, tipo, personas, detalle, estado, notas, creada_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))`,
+        [limpio.id_cliente, limpio.fecha_reserva, limpio.tipo, limpio.personas, limpio.detalle, limpio.estado, limpio.notas]
+      );
+      const id = ultimoId();
+      guardarCombosDeReserva(id, combos);
+      db.run('COMMIT');
+      programarGuardado();
+      return id;
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
   }
 
   function actualizarReserva(id, datos) {
@@ -678,16 +906,194 @@
       throw new Error('La reserva ya no existe.');
     }
     const limpio = validarReserva(datos);
-    ejecutar(
-      `UPDATE reservas SET id_cliente = ?, fecha_reserva = ?, tipo = ?, personas = ?, detalle = ?, estado = ?, notas = ?
-       WHERE id_reserva = ?`,
-      [limpio.id_cliente, limpio.fecha_reserva, limpio.tipo, limpio.personas, limpio.detalle, limpio.estado, limpio.notas, numero]
-    );
-    return numero;
+    const cambiaCombos = Boolean(datos) && Array.isArray(datos.combos);
+    const combos = cambiaCombos ? validarCombosReserva(datos.combos) : null;
+
+    const pago = fila('SELECT monto_transferencia, monto_efectivo FROM pagos WHERE id_reserva = ?', [numero]);
+    if (pago) {
+      const totalPago = redondearPrecio(Number(pago.monto_transferencia) + Number(pago.monto_efectivo));
+      const totalNuevo = combos
+        ? redondearPrecio(combos.reduce(function (suma, combo) {
+          return suma + (Number(combo.cantidad) * Number(combo.precio_unitario));
+        }, 0))
+        : totalCombosDeReserva(numero);
+      if (Math.abs(totalPago - totalNuevo) > 0.009) {
+        throw new Error(
+          'La reserva está pagada por ' + montoTexto(totalPago) + ' y los combos nuevos suman ' + montoTexto(totalNuevo) +
+          '. Para cambiar los combos, primero quitá o ajustá el pago.'
+        );
+      }
+    }
+
+    db.run('BEGIN');
+    try {
+      db.run(
+        `UPDATE reservas SET id_cliente = ?, fecha_reserva = ?, tipo = ?, personas = ?, detalle = ?, estado = ?, notas = ?
+         WHERE id_reserva = ?`,
+        [limpio.id_cliente, limpio.fecha_reserva, limpio.tipo, limpio.personas, limpio.detalle, limpio.estado, limpio.notas, numero]
+      );
+      if (cambiaCombos) guardarCombosDeReserva(numero, combos);
+      db.run('COMMIT');
+      programarGuardado();
+      return numero;
+    } catch (error) {
+      db.run('ROLLBACK');
+      throw error;
+    }
   }
 
   function eliminarReserva(id) {
     ejecutar('DELETE FROM reservas WHERE id_reserva = ?', [Number(id)]);
+  }
+
+  /* ---------- pagos ---------- */
+
+  function montoTexto(valor) {
+    const numero = Number(valor);
+    return '$' + (Number.isFinite(numero) ? numero : 0).toLocaleString('es-AR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+  }
+
+  function totalCombosDeReserva(idReserva) {
+    const resultado = fila(
+      'SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total FROM reserva_combos WHERE id_reserva = ?',
+      [Number(idReserva)]
+    );
+    return redondearPrecio(resultado ? resultado.total : 0);
+  }
+
+  function validarPagoReserva(idReserva, datos) {
+    const numero = Number(idReserva);
+    if (!Number.isInteger(numero) || numero <= 0 || !fila('SELECT id_reserva FROM reservas WHERE id_reserva = ?', [numero])) {
+      throw new Error('La reserva del pago ya no existe. Actualizá la lista e intentá de nuevo.');
+    }
+
+    const fecha = String((datos && datos.fecha_pago) ?? '').trim();
+    const partes = fecha.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (!partes) throw new Error('Elegí una fecha y hora válidas para el pago.');
+    const fechaObj = new Date(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3]), Number(partes[4]), Number(partes[5]));
+    if (
+      Number.isNaN(fechaObj.getTime()) ||
+      fechaObj.getFullYear() !== Number(partes[1]) ||
+      fechaObj.getMonth() !== Number(partes[2]) - 1 ||
+      fechaObj.getDate() !== Number(partes[3]) ||
+      fechaObj.getHours() !== Number(partes[4]) ||
+      fechaObj.getMinutes() !== Number(partes[5])
+    ) {
+      throw new Error('La fecha y hora del pago no son válidas.');
+    }
+
+    const transferencia = redondearPrecio(datos && datos.monto_transferencia);
+    if (!Number.isFinite(transferencia) || transferencia < 0) {
+      throw new Error('El monto entregado en transferencia no es válido.');
+    }
+    if (transferencia > PRECIO_MAXIMO) throw new Error('El monto en transferencia supera el máximo permitido.');
+
+    const efectivo = redondearPrecio(datos && datos.monto_efectivo);
+    if (!Number.isFinite(efectivo) || efectivo < 0) {
+      throw new Error('El monto entregado en efectivo no es válido.');
+    }
+    if (efectivo > PRECIO_MAXIMO) throw new Error('El monto en efectivo supera el máximo permitido.');
+
+    const totalReserva = totalCombosDeReserva(numero);
+    const totalPago = redondearPrecio(transferencia + efectivo);
+    if (Math.abs(totalPago - totalReserva) > 0.009) {
+      throw new Error(
+        'Los montos entregados suman ' + montoTexto(totalPago) +
+        ', pero el total de combos de la reserva es ' + montoTexto(totalReserva) +
+        '. Ajustá los montos para que coincidan.'
+      );
+    }
+
+    return {
+      fecha_pago: partes[1] + '-' + partes[2] + '-' + partes[3] + 'T' + partes[4] + ':' + partes[5],
+      monto_transferencia: transferencia,
+      monto_efectivo: efectivo
+    };
+  }
+
+  function pagoDeReserva(idReserva) {
+    return fila(`
+      SELECT
+        p.*,
+        (p.monto_transferencia + p.monto_efectivo) AS total
+      FROM pagos p
+      WHERE p.id_reserva = ?
+    `, [Number(idReserva)]);
+  }
+
+  function guardarPagoReserva(idReserva, datos) {
+    const numero = Number(idReserva);
+    const limpio = validarPagoReserva(numero, datos);
+    const existente = fila('SELECT id_pago FROM pagos WHERE id_reserva = ?', [numero]);
+
+    if (existente) {
+      ejecutar(
+        `UPDATE pagos SET fecha_pago = ?, monto_transferencia = ?, monto_efectivo = ? WHERE id_reserva = ?`,
+        [limpio.fecha_pago, limpio.monto_transferencia, limpio.monto_efectivo, numero]
+      );
+      return Number(existente.id_pago);
+    }
+
+    ejecutar(
+      `INSERT INTO pagos (id_reserva, fecha_pago, monto_transferencia, monto_efectivo)
+       VALUES (?, ?, ?, ?)`,
+      [numero, limpio.fecha_pago, limpio.monto_transferencia, limpio.monto_efectivo]
+    );
+    return ultimoId();
+  }
+
+  function eliminarPagoReserva(idReserva) {
+    const numero = Number(idReserva);
+    if (!fila('SELECT id_pago FROM pagos WHERE id_reserva = ?', [numero])) {
+      throw new Error('La reserva no tiene un pago registrado.');
+    }
+    ejecutar('DELETE FROM pagos WHERE id_reserva = ?', [numero]);
+  }
+
+  function listarPagos() {
+    return filas(`
+      SELECT
+        p.*,
+        (p.monto_transferencia + p.monto_efectivo) AS total,
+        substr(p.fecha_pago, 1, 10) AS fecha_dia,
+        r.fecha_reserva,
+        r.tipo,
+        r.personas,
+        r.detalle,
+        r.estado,
+        r.id_cliente,
+        c.nombre,
+        c.apellido,
+        c.documento,
+        (SELECT COALESCE(SUM(rc.cantidad), 0)
+           FROM reserva_combos rc WHERE rc.id_reserva = r.id_reserva) AS combos_cantidad,
+        (SELECT COALESCE(SUM(rc.cantidad * rc.precio_unitario), 0)
+           FROM reserva_combos rc WHERE rc.id_reserva = r.id_reserva) AS combos_total
+      FROM pagos p
+      JOIN reservas r ON r.id_reserva = p.id_reserva
+      JOIN clientes c ON c.id_cliente = r.id_cliente
+      ORDER BY date(p.fecha_pago) DESC, p.fecha_pago DESC, p.id_pago DESC
+    `);
+  }
+
+  function estadisticasPagos() {
+    const resultado = fila(`
+      SELECT
+        COUNT(*) AS reservas,
+        COALESCE(SUM(monto_transferencia), 0) AS transferencia,
+        COALESCE(SUM(monto_efectivo), 0) AS efectivo,
+        COALESCE(SUM(monto_transferencia + monto_efectivo), 0) AS total
+      FROM pagos
+    `) || {};
+    return {
+      reservas: Number(resultado.reservas || 0),
+      transferencia: Number(resultado.transferencia || 0),
+      efectivo: Number(resultado.efectivo || 0),
+      total: Number(resultado.total || 0)
+    };
   }
 
   /* ---------- datos de ejemplo ---------- */
@@ -716,29 +1122,64 @@
       ['Valentina', 'Ríos', '+54 9 11 5544-9021', '37123456']
     ];
 
-    db.run('BEGIN TRANSACTION');
+    const combos = [
+      ['Combo Andino', 'Milanesa de ternera, papas rústicas y gaseosa', 9800],
+      ['Combo del Huerto', 'Lasagna de verduras, ensalada y agua saborizada', 8600],
+      ['Combo Parrilla', 'Asado, chorizo, provoleta y gaseosa', 12500],
+      ['Combo Infantil', 'Milanesa con papas fritas, jugo y postre', 6200],
+      ['Combo Café', 'Café doble, medialunas y jugo de naranja', 4200]
+    ];
+
+    const reservas = [
+      [0, proxima(0, 21, 0), 'mesa', 4, 'Mesa 7', 'confirmada', 'Cumpleaños: preparar una vela.', [[0, 4]]],
+      [1, proxima(1, 20, 30), 'mesa', 2, 'Mesa 3', 'pendiente', '', [[1, 2]]],
+      [2, proxima(2, 19, 0), 'evento', 30, 'Aniversario de la empresa Andina', 'confirmada', 'Proyector y micrófono.', [[2, 30]]],
+      [0, proxima(5, 13, 0), 'mesa', 6, 'Mesa 12', 'pendiente', 'Dos vegetarianos.', [[1, 4], [3, 2]]],
+      [3, proxima(8, 21, 30), 'evento', 18, 'Despedida de soltero', 'pendiente', '', [[2, 18]]],
+      [4, proxima(-3, 20, 0), 'mesa', 2, 'Mesa 5', 'confirmada', '', [[4, 2]]]
+    ];
+
+    db.run('BEGIN');
     try {
+      const idsClientes = [];
       for (let i = 0; i < clientes.length; i++) {
         db.run(
           'INSERT INTO clientes (nombre, apellido, telefono, documento) VALUES (?, ?, ?, ?)',
           clientes[i]
         );
+        idsClientes.push(ultimoId());
       }
 
-      const reservas = [
-        [1, proxima(0, 21, 0), 'mesa', 4, 'Mesa 7', 'confirmada', 'Cumpleaños: preparar una vela.'],
-        [2, proxima(1, 20, 30), 'mesa', 2, 'Mesa 3', 'pendiente', ''],
-        [3, proxima(2, 19, 0), 'evento', 30, 'Aniversario de la empresa Andina', 'confirmada', 'Proyector y micrófono.'],
-        [1, proxima(5, 13, 0), 'mesa', 6, 'Mesa 12', 'pendiente', 'Dos vegetarianos.'],
-        [4, proxima(8, 21, 30), 'evento', 18, 'Despedida de soltero', 'pendiente', ''],
-        [5, proxima(-3, 20, 0), 'mesa', 2, 'Mesa 5', 'confirmada', '']
-      ];
+      const idsCombos = [];
+      if (estadisticas().combos === 0) {
+        for (let i = 0; i < combos.length; i++) {
+          db.run('INSERT INTO combos (nombre, contenido, precio) VALUES (?, ?, ?)', combos[i]);
+          idsCombos.push(ultimoId());
+        }
+      } else {
+        filas('SELECT id_combo FROM combos ORDER BY id_combo').forEach(function (combo) {
+          idsCombos.push(Number(combo.id_combo));
+        });
+      }
+
       for (let j = 0; j < reservas.length; j++) {
+        const reserva = reservas[j];
         db.run(
           `INSERT INTO reservas (id_cliente, fecha_reserva, tipo, personas, detalle, estado, notas, creada_en)
            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))`,
-          reservas[j]
+          [idsClientes[reserva[0]], reserva[1], reserva[2], reserva[3], reserva[4], reserva[5], reserva[6]]
         );
+        const idReserva = ultimoId();
+        const asignados = reserva[7] || [];
+        for (let k = 0; k < asignados.length; k++) {
+          const idCombo = idsCombos[asignados[k][0]];
+          if (!idCombo) continue;
+          const detalleCombo = fila('SELECT precio FROM combos WHERE id_combo = ?', [idCombo]);
+          db.run(
+            'INSERT INTO reserva_combos (id_reserva, id_combo, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
+            [idReserva, idCombo, asignados[k][1], detalleCombo ? Number(detalleCombo.precio) : 0]
+          );
+        }
       }
       db.run('COMMIT');
     } catch (error) {
@@ -752,7 +1193,7 @@
 
   function exportar() {
     if (!db) throw new Error('La base de datos todavía no está lista.');
-    return db.export();
+    return exportarBytes();
   }
 
   function validarEstructura(instancia) {
@@ -886,6 +1327,21 @@
     crearReserva: crearReserva,
     actualizarReserva: actualizarReserva,
     eliminarReserva: eliminarReserva,
+    combosDeReserva: combosDeReserva,
+
+    totalCombosDeReserva: totalCombosDeReserva,
+    pagoDeReserva: pagoDeReserva,
+    guardarPagoReserva: guardarPagoReserva,
+    eliminarPagoReserva: eliminarPagoReserva,
+    listarPagos: listarPagos,
+    estadisticasPagos: estadisticasPagos,
+
+    listarCombos: listarCombos,
+    obtenerCombo: obtenerCombo,
+    crearCombo: crearCombo,
+    actualizarCombo: actualizarCombo,
+    eliminarCombo: eliminarCombo,
+    contarReservasConCombo: contarReservasConCombo,
 
     estadisticas: estadisticas,
     cargarEjemplo: cargarEjemplo,

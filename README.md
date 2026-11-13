@@ -1,6 +1,7 @@
 # Mesa & Evento — Reservas del restaurante
 
-Aplicación para administrar **clientes**, **reservas de mesas** y **eventos** de un restaurante.
+Aplicación para administrar **clientes**, **reservas de mesas** y **eventos** de un restaurante,
+con **combos de comida** que se pueden sumar a cada reserva.
 
 Los datos se guardan en una base de datos **SQLite real** dentro de un archivo local,
 `datos.sqlite`, que crea la propia aplicación. El motor de SQLite (compilado a WebAssembly)
@@ -59,6 +60,59 @@ Cada reserva guarda sus propios datos:
 
 La pantalla de reservas muestra: reservas próximas, comensales esperados, eventos próximos y
 clientes registrados.
+
+### Combos
+
+Un combo es una comida con precio por unidad que después se suma a las reservas.
+
+- Registrar **nombre**, **qué incluye** y **precio por unidad**.
+- Buscar combos por nombre o por su contenido.
+- Editar el nombre, el contenido y el precio.
+- Eliminar un combo **solo si no está en ninguna reserva**, para no romper reservas viejas.
+
+Dentro de una reserva se elige el combo y la **cantidad** que se va a consumir (la app sugiere
+1 por comensal, pero se puede cambiar). La reserva muestra, por cada combo:
+
+| Dato | Descripción |
+| --- | --- |
+| Nombre | Nombre del combo |
+| Cantidad | Unidades que se van a consumir |
+| Precio por unidad | Precio del combo en el momento de cargar la reserva |
+| Subtotal | Cantidad × precio por unidad |
+| Total de combos | Suma de todos los combos de la reserva |
+
+El precio se guarda **por reserva**: si después actualizás el precio del combo, las reservas
+anteriores conservan el precio con el que se cargaron. En la tabla de reservas se ve la
+cantidad de combos y el total; al editar la reserva se ve el detalle completo.
+
+### Pagos
+
+Cada reserva se puede marcar como **pagada** desde la tabla de reservas, con el botón de dinero
+de la columna de acciones. El pago admite tres formas:
+
+- **Transferencia**: todo el dinero se registra como transferencia.
+- **Efectivo**: todo el dinero se registra en efectivo.
+- **Mixto (parcialidades)**: se reparte el total entre transferencia y efectivo; por ejemplo,
+  una parte por transferencia y el finiquito en efectivo.
+
+El pago se guarda con su propia **fecha y hora**, que puede ser distinta a la fecha de la
+reserva. Los importes entregados deben sumar exactamente el total de combos de la reserva.
+
+La sección **Pagos** muestra lo cobrado con tarjetas de resumen y una **tabla por cada fecha
+de pago**. Cada tabla incluye el detalle de la reserva pagada:
+
+| Dato | Descripción |
+| --- | --- |
+| Fecha | Fecha y hora en que se registró el pago (y debajo, la fecha de la reserva) |
+| Combos | Cliente y detalle de cada combo: cantidad × nombre, con el precio por unidad |
+| Transferencia | Dinero entregado por transferencia |
+| Efectivo | Dinero entregado en efectivo |
+| Total | Suma de transferencia + efectivo |
+
+Cada tabla muestra además el **total del día** para transferencia, efectivo y total general.
+Desde la sección Pagos se puede editar o quitar un pago; al quitarlo, la reserva vuelve a
+figurar como **sin pagar**. Si una reserva está pagada, no se pueden cambiar sus combos hasta
+quitar o ajustar el pago, para que el detalle del pago y el total de la reserva coincidan.
 
 ---
 
@@ -154,10 +208,46 @@ CREATE TABLE reservas (
 
 CREATE INDEX idx_reservas_cliente ON reservas (id_cliente);
 CREATE INDEX idx_reservas_fecha   ON reservas (fecha_reserva);
+
+CREATE TABLE combos (
+  id_combo  INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre    TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  contenido TEXT NOT NULL DEFAULT '',          -- comida que incluye
+  precio    REAL NOT NULL CHECK (precio >= 0), -- precio por unidad
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE reserva_combos (
+  id_reserva      INTEGER NOT NULL,
+  id_combo        INTEGER NOT NULL,
+  cantidad        INTEGER NOT NULL CHECK (cantidad BETWEEN 1 AND 500),
+  precio_unitario REAL NOT NULL CHECK (precio_unitario >= 0),
+  PRIMARY KEY (id_reserva, id_combo),
+  FOREIGN KEY (id_reserva) REFERENCES reservas (id_reserva) ON DELETE CASCADE,
+  FOREIGN KEY (id_combo) REFERENCES combos (id_combo)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_reserva_combos_combo ON reserva_combos (id_combo);
+
+CREATE TABLE pagos (
+  id_pago             INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_reserva          INTEGER NOT NULL UNIQUE,
+  fecha_pago          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+  monto_efectivo      REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
+  FOREIGN KEY (id_reserva) REFERENCES reservas (id_reserva) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_pagos_fecha ON pagos (fecha_pago);
 ```
 
-La relación es **un cliente → muchas reservas**. La clave foránea `ON DELETE RESTRICT` impide
-borrar clientes con reservas, y la app lo explica antes de intentarlo.
+La relación es **un cliente → muchas reservas** y **muchas reservas ↔ muchos combos** (cada
+línea de `reserva_combos` guarda la cantidad y el precio unitario de ese momento). La clave
+foránea `ON DELETE RESTRICT` impide borrar clientes con reservas y combos usados en reservas;
+al borrar una reserva se borran sus líneas de combos y su pago (`ON DELETE CASCADE`). La app
+explica estos casos antes de intentarlo. Cada reserva tiene como máximo un pago, que guarda
+cuánto se entregó por transferencia y cuánto en efectivo.
 
 ---
 
@@ -170,10 +260,17 @@ borrar clientes con reservas, y la app lo explica antes de intentarlo.
 - Fecha y hora válidas; al crear, no se permiten fechas pasadas.
 - Personas: número entero entre 1 y 500.
 - Tipo y estado restringidos por la propia base de datos (`CHECK`).
+- Combo: nombre obligatorio (2 a 60 caracteres) y único sin distinguir mayúsculas.
+- Precio del combo: número mayor o igual a 0, con hasta 2 decimales.
+- Cantidad de cada combo en una reserva: entero entre 1 y 500; no se puede repetir el mismo combo.
+- El precio unitario de la reserva se guarda con la reserva y no cambia si después se edita el combo.
+- Montos de pago: números mayores o iguales a 0; transferencia + efectivo debe coincidir con el total de combos.
+- Un pago por reserva, con fecha y hora válidas. Al borrar la reserva se borra su pago.
 
 ---
 
 ## Datos de ejemplo
 
 Si la base está vacía, en la pantalla de reservas aparece el botón **“Cargar datos de ejemplo”**.
-Agrega 5 clientes y 6 reservas para probar la aplicación; se pueden eliminar uno por uno.
+Agrega 5 clientes, 6 reservas y 5 combos (con combos asignados a varias reservas) para probar la
+aplicación; se pueden eliminar uno por uno.
