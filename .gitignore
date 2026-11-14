@@ -1,3 +1,11 @@
 datos.sqlite
 datos.sqlite.tmp
 respaldos/
+
+# Capacitor / Android
+node_modules/
+www/
+dist/
+keystore/
+android/keystore.properties
+android/local.properties

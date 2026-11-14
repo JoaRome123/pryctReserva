@@ -1,0 +1,31 @@
+{
+  "name": "mesa-y-evento",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mesa & Evento — reservas del restaurante, empaquetada para Android con Capacitor",
+  "scripts": {
+    "build:nativo": "esbuild src/nativo.js --bundle --minify --format=iife --target=es2017 --outfile=js/nativo.js",
+    "iconos": "node scripts/generar-iconos.mjs",
+    "sync:www": "npm run build:nativo && node scripts/preparar-www.mjs",
+    "android:sync": "npm run sync:www && cap sync android",
+    "android:open": "npm run android:sync && cap open android",
+    "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
+    "android:release": "npm run android:sync && cd android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/share": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0",
+    "esbuild": "^0.28.2",
+    "sharp": "^0.34.0"
+  }
+}

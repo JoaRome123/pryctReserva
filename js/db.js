@@ -17,6 +17,14 @@
   const API = '/api';
   const MOTIVO_IMPORTAR = 'importar';
 
+  /* En el APK de Android no existe el servidor local de Windows: la base vive
+     siempre en el almacenamiento del teléfono (IndexedDB). */
+  function enAndroid() {
+    if (typeof window.__ES_NATIVO__ === 'boolean') return window.__ES_NATIVO__;
+    const cap = window.Capacitor;
+    return Boolean(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
+  }
+
   const TIPOS = ['mesa', 'evento'];
   const ESTADOS = ['pendiente', 'confirmada', 'cancelada'];
 
@@ -190,6 +198,10 @@
   }
 
   async function elegirAlmacen() {
+    if (enAndroid()) {
+      await elegirAlmacenNavegador();
+      return;
+    }
     try {
       const respuesta = await pedir(API + '/estado', { headers: { Accept: 'application/json' } }, 1500);
       if (respuesta.ok) {

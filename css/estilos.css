@@ -1124,3 +1124,82 @@ dialog form { display: flex; flex-direction: column; max-height: min(90vh, 780px
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+
+/* ============================================================
+   Android (APK con Capacitor)
+   La app ocupa toda la pantalla, incluso debajo de la barra de
+   estado y de los botones del sistema. Estas reglas corren el
+   contenido para que nada quede tapado y evitan gestos raros.
+   ============================================================ */
+
+html.es-nativo {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+
+html.es-nativo body {
+  -webkit-tap-highlight-color: rgba(43, 85, 64, .12);
+  overscroll-behavior-y: none;
+  min-height: 100dvh;
+}
+
+html.es-nativo .barra {
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: calc(32px + env(safe-area-inset-left, 0px));
+  padding-right: calc(32px + env(safe-area-inset-right, 0px));
+}
+
+html.es-nativo .contenido {
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(32px + env(safe-area-inset-left, 0px));
+  padding-right: calc(32px + env(safe-area-inset-right, 0px));
+}
+
+html.es-nativo .toasts {
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 1080px) {
+  html.es-nativo .barra {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    padding-left: calc(20px + env(safe-area-inset-left, 0px));
+    padding-right: calc(20px + env(safe-area-inset-right, 0px));
+  }
+  html.es-nativo .contenido {
+    padding-left: calc(20px + env(safe-area-inset-left, 0px));
+    padding-right: calc(20px + env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (max-width: 720px) {
+  html.es-nativo .barra {
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    padding-left: calc(14px + env(safe-area-inset-left, 0px));
+    padding-right: calc(14px + env(safe-area-inset-right, 0px));
+  }
+  html.es-nativo .contenido {
+    padding-left: calc(14px + env(safe-area-inset-left, 0px));
+    padding-right: calc(14px + env(safe-area-inset-right, 0px));
+    padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Los diálogos no deben quedar debajo de la barra de estado ni de la
+   barra de navegación del teléfono. */
+@supports (height: 100dvh) {
+  html.es-nativo dialog.dialogo,
+  html.es-nativo dialog.dialogo form {
+    max-height: min(90dvh, 780px);
+  }
+  html.es-nativo dialog.dialogo {
+    width: min(560px, calc(100vw - 24px));
+  }
+  html.es-nativo dialog.dialogo.dialogo-ancho {
+    width: min(620px, calc(100vw - 24px));
+  }
+  html.es-nativo dialog.dialogo.dialogo-angosto {
+    width: min(460px, calc(100vw - 24px));
+  }
+}
+

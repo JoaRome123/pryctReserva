@@ -25,6 +25,24 @@ conviene usar `iniciar.bat`.
 
 ---
 
+## Versión para Android (APK)
+
+La aplicación también se puede instalar como app en un teléfono o tablet Android,
+sin PC y sin Internet. Se empaqueta como APK con Capacitor y los datos quedan
+guardados dentro del teléfono.
+
+La guía completa está en **[README-ANDROID.md](README-ANDROID.md)**. En resumen:
+
+1. Copiá `dist\Mesa-y-Evento.apk` al teléfono e instalalo (permitiendo apps de
+   origen desconocido).
+2. Para volver a generar el APK en la PC: `compilar-apk.ps1`.
+
+En Android no existe el archivo `datos.sqlite` a la vista ni la carpeta `respaldos`:
+conviene usar **Exportar** para guardar copias `.sqlite` en el teléfono o en Drive.
+Esas copias se pueden importar tanto en Android como en la versión de Windows.
+
+---
+
 ## Qué se puede hacer
 
 ### Clientes
@@ -166,14 +184,22 @@ pryctReserva/
 ├── css/estilos.css            Estilos
 ├── js/db.js                   Base de datos SQLite, validaciones y respaldo
 ├── js/app.js                  Lógica de la interfaz
+├── js/nativo.js               Puente con Android (generado desde src/nativo.js)
+├── src/nativo.js              Código del puente con Android
 ├── vendor/
 │   ├── sql-wasm.js            Motor SQLite para el navegador
 │   ├── sql-wasm.wasm          Binario de SQLite
 │   └── sqlite-wasm-base64.js  Binario incrustado (permite abrir sin servidor)
 ├── iniciar.bat                Inicia el servidor local y abre el navegador
 ├── iniciar.ps1                Servidor local: archivos, API de guardado y respaldos
-├── datos.sqlite               Base de datos (se crea sola)
-├── respaldos/                 Copias automáticas (se crea sola)
+├── datos.sqlite               Base de datos (se crea sola en Windows)
+├── respaldos/                 Copias automáticas (se crea sola en Windows)
+├── android/                   Proyecto Android (Capacitor + Gradle)
+├── assets/                    Íconos y pantalla de inicio del APK
+├── scripts/                   Armado de www/ y generación de íconos
+├── compilar-apk.ps1           Compila dist/Mesa-y-Evento.apk
+├── capacitor.config.json      Configuración de la app Android
+├── README-ANDROID.md          Guía de instalación y compilación del APK
 └── README.md
 ```
 

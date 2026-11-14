@@ -355,8 +355,13 @@
 
     if (almacen === 'indexeddb' || almacen === 'local') {
       chip.classList.remove('advertencia');
-      chip.title = 'Los datos se guardan automáticamente en este navegador.';
-      texto.textContent = 'Guardado local';
+      if (window.NATIVO && window.NATIVO.activo) {
+        chip.title = 'Los datos se guardan automáticamente en este teléfono.';
+        texto.textContent = 'Guardado en el teléfono';
+      } else {
+        chip.title = 'Los datos se guardan automáticamente en este navegador.';
+        texto.textContent = 'Guardado local';
+      }
       aviso.hidden = true;
       return;
     }
@@ -1845,14 +1850,33 @@
 
   /* ---------- exportar e importar ---------- */
 
-  function exportarBase() {
+  async function exportarBase() {
     try {
       const bytes = DB.exportar();
+      const nombre = 'mesa-y-evento-' + fechaArchivo(new Date()) + '.sqlite';
+
+      // En el APK de Android no existen las descargas del navegador: se abre
+      // el menú del sistema para guardar o compartir el archivo .sqlite.
+      if (window.NATIVO && window.NATIVO.activo && window.NATIVO.guardarCopia) {
+        try {
+          const resultado = await window.NATIVO.guardarCopia(bytes, nombre);
+          mostrarToast(resultado && resultado.compartido
+            ? 'Elegí dónde guardar la copia en el menú de Android.'
+            : 'Copia guardada en Documentos/Mesa y Evento.');
+        } catch (error) {
+          const mensaje = String((error && error.message) || '');
+          if (!/cancel/i.test(mensaje)) {
+            mostrarToast('No se guardó la copia de la base de datos.', 'error', 6000);
+          }
+        }
+        return;
+      }
+
       const blob = new Blob([bytes], { type: 'application/x-sqlite3' });
       const url = URL.createObjectURL(blob);
       const enlace = document.createElement('a');
       enlace.href = url;
-      enlace.download = 'mesa-y-evento-' + fechaArchivo(new Date()) + '.sqlite';
+      enlace.download = nombre;
       document.body.appendChild(enlace);
       enlace.click();
       enlace.remove();
