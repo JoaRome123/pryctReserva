@@ -103,7 +103,8 @@ svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
   background: linear-gradient(150deg, #356349, var(--verde-oscuro));
   box-shadow: 0 6px 14px -8px rgba(31, 64, 48, .8);
 }
-.marca-logo .icono { width: 23px; height: 23px; stroke-width: 1.6; }
+.marca-logo .icono,
+.marca-logo > svg { width: 23px; height: 23px; stroke-width: 1.6; }
 
 .marca-texto h1 {
   font-family: var(--serif);
@@ -488,7 +489,13 @@ input:focus, select:focus, textarea:focus {
 
 /* ---------- Tablas ---------- */
 
-.tabla-envoltura { overflow-x: auto; }
+.tabla-envoltura {
+  max-width: 100%;
+  overflow-x: auto;
+  /* Evita que el ancho de la tabla (que se desplaza aparte) agrande
+     el ancho de la página en Android. */
+  contain: paint;
+}
 
 .tabla {
   width: 100%;
@@ -1080,7 +1087,7 @@ dialog form { display: flex; flex-direction: column; max-height: min(90vh, 780px
   .pestana { flex: 1; justify-content: center; }
   .contenido { padding: 24px 20px 48px; }
   .tarjetas { grid-template-columns: repeat(2, 1fr); }
-  .oculto-angosto { display: none; }
+  .acciones-barra .oculto-angosto { display: none; }
   .acciones-barra .btn { padding: 9px 11px; }
   .estado-db { font-size: 0; padding: 8px; }
   .estado-db .punto { width: 8px; height: 8px; }
@@ -1129,14 +1136,34 @@ dialog form { display: flex; flex-direction: column; max-height: min(90vh, 780px
   .resumen-pago-cab { flex-direction: column; }
 }
 
+@media (max-width: 620px) {
+  .pestana { padding: 7px 11px; gap: 7px; font-size: 13.5px; }
+  .pestana .contador { display: none; }
+}
+
 @media (max-width: 460px) {
-  .pestana { padding: 7px 8px; font-size: 13px; }
+  .barra { padding: 10px 12px; gap: 10px; }
+  .marca { gap: 9px; }
+  .marca-logo { width: 34px; height: 34px; border-radius: 11px; }
+  .marca-texto h1 { font-size: 15.5px; }
+  .marca-texto p { font-size: 9.5px; letter-spacing: .7px; }
+  .acciones-barra { gap: 6px; }
+  .acciones-barra .btn { padding: 8px 9px; }
+  .pestanas { gap: 2px; padding: 3px; min-width: 0; }
+  .pestana { gap: 0; padding: 8px 6px; font-size: 12.5px; min-width: 0; }
+  .pestana .icono { display: none; }
   .pestana .contador { display: none; }
   .estado-db { display: none; }
   .tarjetas { grid-template-columns: 1fr 1fr; }
   .stat-etiqueta { font-size: 11px; }
   .cabecera-vista .btn { width: 100%; }
   .cabecera-acciones { flex-direction: column; align-items: stretch; }
+}
+
+@media (max-width: 380px) {
+  .marca-texto p { display: none; }
+  .marca-texto h1 { font-size: 15px; }
+  .acciones-barra .btn { padding: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
