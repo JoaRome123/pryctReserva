@@ -232,6 +232,14 @@ svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .btn-peligro { background: var(--rojo); color: #fff; }
 .btn-peligro:hover { background: #8a2c27; }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: .42;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 .btn-chico { padding: 7px 11px; font-size: 13px; }
 
 .btn-icono {
@@ -316,6 +324,14 @@ svg.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
   line-height: 1.1;
 }
 .cabecera-vista p { margin-top: 5px; color: var(--tinta-suave); font-size: 14px; }
+
+.cabecera-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
 /* ---------- Tarjetas resumen ---------- */
 
@@ -1079,6 +1095,7 @@ dialog form { display: flex; flex-direction: column; max-height: min(90vh, 780px
   .contenido { padding: 20px 14px 44px; }
   .cabecera-vista { flex-direction: column; align-items: stretch; gap: 14px; }
   .cabecera-vista .btn { align-self: flex-start; }
+  .cabecera-acciones { width: 100%; justify-content: flex-start; }
   .cabecera-vista h2 { font-size: 26px; }
   .tarjetas { gap: 10px; }
   .tarjeta-stat { padding: 13px; gap: 10px; }
@@ -1119,6 +1136,7 @@ dialog form { display: flex; flex-direction: column; max-height: min(90vh, 780px
   .tarjetas { grid-template-columns: 1fr 1fr; }
   .stat-etiqueta { font-size: 11px; }
   .cabecera-vista .btn { width: 100%; }
+  .cabecera-acciones { flex-direction: column; align-items: stretch; }
 }
 
 @media (prefers-reduced-motion: reduce) {

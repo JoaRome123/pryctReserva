@@ -29,7 +29,9 @@ const obligatorios = [
   'css/estilos.css',
   'js/db.js',
   'js/app.js',
+  'js/exportar.js',
   'js/nativo.js',
+  'vendor/exceljs.min.js',
   'vendor/sql-wasm.js',
   'vendor/sql-wasm.wasm',
   'vendor/sqlite-wasm-base64.js'

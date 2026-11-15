@@ -73,6 +73,8 @@ Cada reserva guarda sus propios datos:
 - Las reservas próximas aparecen primero; las pasadas y canceladas quedan atenuadas al final.
 - Se pueden filtrar por tipo, estado y fecha, y buscar por cliente, documento, mesa o evento.
 - Al crear una reserva se puede **registrar un cliente nuevo sin salir del formulario**.
+- El botón **Exportar Excel** descarga en `.xlsx` las reservas que se están viendo, respetando
+  los filtros aplicados. Incluye personas, combos, total de combos, notas, estado y pago.
 
 ### Resumen
 
@@ -128,6 +130,9 @@ de pago**. Cada tabla incluye el detalle de la reserva pagada:
 | Total | Suma de transferencia + efectivo |
 
 Cada tabla muestra además el **total del día** para transferencia, efectivo y total general.
+El botón **Exportar Excel** de la sección Pagos genera un `.xlsx` con la misma agrupación por
+día, sus totales y un total general.
+
 Desde la sección Pagos se puede editar o quitar un pago; al quitarlo, la reserva vuelve a
 figurar como **sin pagar**. Si una reserva está pagada, no se pueden cambiar sus combos hasta
 quitar o ajustar el pago, para que el detalle del pago y el total de la reserva coincidan.
@@ -158,6 +163,10 @@ pryctReserva\
 ### Exportar e importar
 
 - **Exportar**: descarga un archivo `mesa-y-evento-AAAA-MM-DD.sqlite` con toda la base.
+- **Exportar Excel**: en Reservas y Pagos descarga `reservas-AAAA-MM-DD.xlsx` o
+  `pagos-AAAA-MM-DD.xlsx` con la tabla que se está viendo. Son planillas reales (encabezados,
+  estilos, anchos, filtros y totales) que se abren con Excel, LibreOffice o Google Sheets.
+  En Android se abre el menú del sistema para guardar o compartir el archivo.
 - **Importar**: reemplaza la base actual por el contenido de un archivo `.sqlite`. Antes de
   reemplazarla se guarda una copia automática en `respaldos\importaciones`.
 
@@ -184,12 +193,14 @@ pryctReserva/
 ├── css/estilos.css            Estilos
 ├── js/db.js                   Base de datos SQLite, validaciones y respaldo
 ├── js/app.js                  Lógica de la interfaz
+├── js/exportar.js             Generación de planillas .xlsx
 ├── js/nativo.js               Puente con Android (generado desde src/nativo.js)
 ├── src/nativo.js              Código del puente con Android
 ├── vendor/
 │   ├── sql-wasm.js            Motor SQLite para el navegador
 │   ├── sql-wasm.wasm          Binario de SQLite
-│   └── sqlite-wasm-base64.js  Binario incrustado (permite abrir sin servidor)
+│   ├── sqlite-wasm-base64.js  Binario incrustado (permite abrir sin servidor)
+│   └── exceljs.min.js         Generador de archivos Excel (ExcelJS)
 ├── iniciar.bat                Inicia el servidor local y abre el navegador
 ├── iniciar.ps1                Servidor local: archivos, API de guardado y respaldos
 ├── datos.sqlite               Base de datos (se crea sola en Windows)

@@ -37,6 +37,7 @@ datos se conservan. Para eso el APK tiene que estar firmado con la **misma clave
 | Datos | Archivo `datos.sqlite` junto al programa | Almacenamiento privado de la app (IndexedDB) |
 | Copias automáticas | Carpeta `respaldos` | No hay carpeta; usá **Exportar** |
 | Exportar | Descarga el `.sqlite` | Abre el menú de Android para guardar/compartir el `.sqlite` |
+| Exportar Excel | Descarga `reservas-*.xlsx` / `pagos-*.xlsx` | Abre el menú de Android para guardar/compartir el `.xlsx` |
 | Importar | Elegís el archivo | Elegís el archivo (puede estar en Descargas, Drive, etc.) |
 | Conexión | Ninguna | Ninguna |
 
@@ -71,7 +72,8 @@ La app web se copia a `www/` y Capacitor la mete dentro del APK. En Android,
 
 - configura la barra de estado y los márgenes seguros de la pantalla;
 - hace que el botón **atrás** cierre los diálogos antes de salir;
-- reemplaza la descarga del navegador por el menú de Android al **Exportar**.
+- reemplaza la descarga del navegador por el menú de Android al **Exportar** (sirve para la
+  copia `.sqlite` y para las planillas `.xlsx` de Reservas y Pagos).
 
 `js/db.js` detecta que corre en Android y guarda directamente en el teléfono, sin
 intentar conectarse al servidor local de Windows.

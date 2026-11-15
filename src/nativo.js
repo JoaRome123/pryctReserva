@@ -6,7 +6,7 @@
    funcionando como siempre. En el APK agrega:
      · barra de estado y áreas seguras
      · botón "atrás" de Android (cierra diálogos)
-     · exportar la copia .sqlite con el selector de Android
+     · guardar o compartir archivos (.sqlite y .xlsx) con el selector de Android
    ============================================================ */
 
 import { Capacitor } from '@capacitor/core';
@@ -27,11 +27,12 @@ function bytesABase64(bytes) {
   return btoa(binario);
 }
 
-/* Guarda la copia en la memoria temporal de la app y abre el menú de Android
-   para que el usuario elija dónde dejarla (Archivos, Drive, WhatsApp, etc.). */
-async function guardarCopia(bytes, nombre) {
+/* Guarda un archivo (copia .sqlite o planilla .xlsx) en la memoria temporal
+   de la app y abre el menú de Android para que el usuario elija dónde dejarlo
+   (Archivos, Drive, WhatsApp, etc.). */
+async function guardarArchivo(bytes, nombre, descripcion) {
   const datos = bytesABase64(bytes);
-  const ruta = 'respaldos/' + nombre;
+  const ruta = 'exportados/' + nombre;
 
   await Filesystem.writeFile({
     path: ruta,
@@ -48,9 +49,9 @@ async function guardarCopia(bytes, nombre) {
     if (resultado && resultado.value) {
       await Share.share({
         title: nombre,
-        text: 'Copia de la base de datos de Mesa & Evento',
+        text: descripcion || 'Archivo de Mesa & Evento',
         url: archivo.uri,
-        dialogTitle: 'Guardar o compartir la copia'
+        dialogTitle: 'Guardar o compartir el archivo'
       });
       return { compartido: true };
     }
@@ -60,7 +61,7 @@ async function guardarCopia(bytes, nombre) {
     errorCompartir = error;
   }
 
-  // Si el teléfono no ofrece el menú de compartir, dejamos la copia en Documentos.
+  // Si el teléfono no ofrece el menú de compartir, dejamos el archivo en Documentos.
   try {
     const guardado = await Filesystem.writeFile({
       path: 'Mesa y Evento/' + nombre,
@@ -72,6 +73,11 @@ async function guardarCopia(bytes, nombre) {
   } catch (error) {
     throw errorCompartir || error;
   }
+}
+
+/* Nombre anterior, conservado para no romper llamadas viejas. */
+function guardarCopia(bytes, nombre) {
+  return guardarArchivo(bytes, nombre, 'Copia de la base de datos de Mesa & Evento');
 }
 
 function hayDialogoAbierto() {
@@ -105,6 +111,7 @@ async function preparar() {
 
 window.NATIVO = {
   activo: esNativo,
+  guardarArchivo: esNativo ? guardarArchivo : null,
   guardarCopia: esNativo ? guardarCopia : null,
   salir: function () { App.exitApp(); }
 };

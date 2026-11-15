@@ -79,7 +79,7 @@
         <svg><use href="#i-cubiertos"/></svg>
       </div>
       <div class="marca-texto">
-        <h1>Mesa &amp; Evento</h1>
+        <h1>Zetta Resto Pub</h1>
         <p>Reservas del restaurante</p>
       </div>
     </div>
@@ -148,9 +148,15 @@
           <h2>Reservas</h2>
           <p>Mesas y eventos del restaurante, con su cliente asignado.</p>
         </div>
-        <button type="button" class="btn btn-primario" id="btn-nueva-reserva">
-          <svg class="icono"><use href="#i-mas"/></svg> Nueva reserva
-        </button>
+        <div class="cabecera-acciones">
+          <button type="button" class="btn btn-fantasma" id="btn-exportar-reservas" title="Descargar las reservas filtradas en formato Excel (.xlsx)" aria-label="Exportar reservas a Excel">
+            <svg class="icono"><use href="#i-descargar"/></svg>
+            <span class="oculto-angosto">Exportar Excel</span>
+          </button>
+          <button type="button" class="btn btn-primario" id="btn-nueva-reserva">
+            <svg class="icono"><use href="#i-mas"/></svg> Nueva reserva
+          </button>
+        </div>
       </div>
 
       <div class="tarjetas">
@@ -243,9 +249,15 @@
           <h2>Pagos</h2>
           <p>Reservas pagadas, agrupadas por la fecha en que se registró el pago.</p>
         </div>
-        <button type="button" class="btn btn-fantasma" id="btn-pagos-ir-reservas">
-          <svg class="icono"><use href="#i-calendario"/></svg> Ver reservas
-        </button>
+        <div class="cabecera-acciones">
+          <button type="button" class="btn btn-fantasma" id="btn-exportar-pagos" title="Descargar los pagos en formato Excel (.xlsx)" aria-label="Exportar pagos a Excel">
+            <svg class="icono"><use href="#i-descargar"/></svg>
+            <span class="oculto-angosto">Exportar Excel</span>
+          </button>
+          <button type="button" class="btn btn-fantasma" id="btn-pagos-ir-reservas">
+            <svg class="icono"><use href="#i-calendario"/></svg> Ver reservas
+          </button>
+        </div>
       </div>
 
       <div class="tarjetas">
@@ -638,6 +650,8 @@
   <script src="vendor/sqlite-wasm-base64.js"></script>
   <script src="js/nativo.js"></script>
   <script src="js/db.js"></script>
+  <script src="vendor/exceljs.min.js"></script>
+  <script src="js/exportar.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

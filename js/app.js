@@ -253,6 +253,8 @@
     $('#btn-exportar').addEventListener('click', exportarBase);
     $('#btn-importar').addEventListener('click', function () { $('#input-importar').click(); });
     $('#input-importar').addEventListener('change', importarBase);
+    $('#btn-exportar-reservas').addEventListener('click', exportarReservasExcel);
+    $('#btn-exportar-pagos').addEventListener('click', exportarPagosExcel);
 
     document.addEventListener('db:guardado', function (evento) {
       actualizarEstadoAlmacen();
@@ -423,6 +425,8 @@
       fecha: estado.fecha,
       idCliente: estado.idCliente
     });
+
+    actualizarBotonExportar('#btn-exportar-reservas', reservasActuales.length > 0);
 
     const cuerpo = $('#cuerpo-reservas');
     cuerpo.replaceChildren();
@@ -1392,6 +1396,7 @@
     if (!window.DB) return;
 
     pagosActuales = DB.listarPagos();
+    actualizarBotonExportar('#btn-exportar-pagos', pagosActuales.length > 0);
     const totales = DB.estadisticasPagos();
     $('#pago-stat-total').textContent = dinero(totales.total);
     $('#pago-stat-transferencia').textContent = dinero(totales.transferencia);
@@ -1850,41 +1855,243 @@
 
   /* ---------- exportar e importar ---------- */
 
+  function actualizarBotonExportar(selector, hayDatos) {
+    const boton = $(selector);
+    if (!boton) return;
+    boton.disabled = !hayDatos || boton.dataset.ocupado === '1';
+  }
+
+  /* Descarga en la PC y guarda/comparte en el APK de Android. */
+  async function guardarBytes(bytes, nombre, opciones) {
+    const op = opciones || {};
+
+    if (window.NATIVO && window.NATIVO.activo && window.NATIVO.guardarArchivo) {
+      const resultado = await window.NATIVO.guardarArchivo(bytes, nombre, op.descripcion || nombre);
+      mostrarToast(resultado && resultado.compartido
+        ? (op.elegir || 'Elegí dónde guardar el archivo en el menú de Android.')
+        : (op.guardada || 'Archivo guardado en Documentos/Mesa y Evento.'));
+      return;
+    }
+
+    const blob = new Blob([bytes], { type: op.tipo || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    // Damos margen para que el navegador termine de escribir el archivo
+    // antes de liberar la URL temporal (los .xlsx pueden ser grandes).
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    mostrarToast(op.descargada || ('Archivo descargado: ' + nombre));
+  }
+
   async function exportarBase() {
     try {
       const bytes = DB.exportar();
       const nombre = 'mesa-y-evento-' + fechaArchivo(new Date()) + '.sqlite';
+      await guardarBytes(bytes, nombre, {
+        tipo: 'application/x-sqlite3',
+        descripcion: 'Copia de la base de datos de Mesa & Evento',
+        descargada: 'Copia de la base de datos descargada.',
+        elegir: 'Elegí dónde guardar la copia en el menú de Android.',
+        guardada: 'Copia guardada en Documentos/Mesa y Evento.'
+      });
+    } catch (error) {
+      const mensaje = String((error && error.message) || '');
+      if (!/cancel/i.test(mensaje)) {
+        mostrarToast(mensaje || 'No se pudo exportar la base de datos.', 'error', 6000);
+      }
+    }
+  }
 
-      // En el APK de Android no existen las descargas del navegador: se abre
-      // el menú del sistema para guardar o compartir el archivo .sqlite.
-      if (window.NATIVO && window.NATIVO.activo && window.NATIVO.guardarCopia) {
-        try {
-          const resultado = await window.NATIVO.guardarCopia(bytes, nombre);
-          mostrarToast(resultado && resultado.compartido
-            ? 'Elegí dónde guardar la copia en el menú de Android.'
-            : 'Copia guardada en Documentos/Mesa y Evento.');
-        } catch (error) {
-          const mensaje = String((error && error.message) || '');
-          if (!/cancel/i.test(mensaje)) {
-            mostrarToast('No se guardó la copia de la base de datos.', 'error', 6000);
-          }
-        }
-        return;
+  /* ---------- exportar las tablas a Excel ---------- */
+
+  function resumenFiltrosReservas() {
+    const partes = [];
+    if (estado.busquedaReservas) partes.push('Búsqueda: “' + estado.busquedaReservas + '”');
+    if (estado.tipo) partes.push('Tipo: ' + (estado.tipo === 'evento' ? 'Eventos' : 'Mesas'));
+    if (estado.estadoReserva) partes.push('Estado: ' + capitalizar(estado.estadoReserva));
+    if (estado.fecha) {
+      const etiquetas = { proximas: 'Próximas', hoy: 'Hoy', pasadas: 'Pasadas' };
+      partes.push('Fecha: ' + (etiquetas[estado.fecha] || estado.fecha));
+    }
+    if (estado.idCliente) {
+      partes.push('Cliente: ' + (estado.nombreClienteFiltro || numeroCliente(estado.idCliente)));
+    }
+    return partes.length ? partes.join(' · ') : 'Todas las reservas';
+  }
+
+  function filasReservasExcel() {
+    return reservasActuales.map(function (reserva) {
+      const combos = Number(reserva.combos_cantidad || 0);
+      let pago = 'Sin pagar';
+
+      if (reserva.id_pago) {
+        const partesPago = [];
+        if (Number(reserva.pago_transferencia) > 0) partesPago.push('Transf. ' + dinero(reserva.pago_transferencia));
+        if (Number(reserva.pago_efectivo) > 0) partesPago.push('Efectivo ' + dinero(reserva.pago_efectivo));
+        const fechaPago = parseFechaHora(reserva.pago_fecha);
+        pago = 'Pagada' +
+          (partesPago.length ? ' · ' + partesPago.join(' · ') : '') +
+          (fechaPago ? ' · ' + fechaCorta(fechaPago) : '');
       }
 
-      const blob = new Blob([bytes], { type: 'application/x-sqlite3' });
-      const url = URL.createObjectURL(blob);
-      const enlace = document.createElement('a');
-      enlace.href = url;
-      enlace.download = nombre;
-      document.body.appendChild(enlace);
-      enlace.click();
-      enlace.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-      mostrarToast('Copia de la base de datos descargada.');
+      return {
+        cliente: reserva.apellido + ', ' + reserva.nombre +
+          ' · ' + numeroCliente(reserva.id_cliente) + ' · DNI ' + reserva.documento,
+        fecha: reserva.fecha_reserva,
+        tipo: reserva.tipo === 'evento' ? 'Evento' : 'Mesa',
+        personas: Number(reserva.personas || 0),
+        combos: combos,
+        combosTotal: Number(reserva.combos_total || 0),
+        detalle: reserva.detalle || '',
+        notas: reserva.notas || '',
+        estado: capitalizar(reserva.estado),
+        pago: pago
+      };
+    });
+  }
+
+  function gruposPagosExcel() {
+    const grupos = [];
+    const porDia = new Map();
+
+    pagosActuales.forEach(function (pago) {
+      const dia = pago.fecha_dia || String(pago.fecha_pago || '').slice(0, 10);
+      if (!porDia.has(dia)) {
+        const fechaDia = parseFechaHora(dia);
+        const grupo = {
+          dia: dia,
+          titulo: fechaDia ? fechaCorta(fechaDia) : dia,
+          pagos: [],
+          transferencia: 0,
+          efectivo: 0,
+          total: 0
+        };
+        porDia.set(dia, grupo);
+        grupos.push(grupo);
+      }
+
+      const grupo = porDia.get(dia);
+      const combos = DB.combosDeReserva(pago.id_reserva);
+      const cantidad = Number(pago.combos_cantidad || 0);
+
+      grupo.pagos.push({
+        fecha: pago.fecha_pago,
+        cliente: pago.apellido + ', ' + pago.nombre + ' · ' + numeroCliente(pago.id_cliente),
+        reserva: pago.fecha_reserva,
+        tipo: pago.tipo === 'evento' ? 'Evento' : 'Mesa',
+        personas: Number(pago.personas || 0),
+        combos: combos.length
+          ? combos.map(function (combo) { return combo.cantidad + '× ' + combo.nombre; }).join(' · ')
+          : (cantidad ? cantidad + ' combos' : 'Sin combos'),
+        transferencia: Number(pago.monto_transferencia || 0),
+        efectivo: Number(pago.monto_efectivo || 0),
+        total: Number(pago.total || 0)
+      });
+
+      grupo.transferencia = redondearMonto(grupo.transferencia + Number(pago.monto_transferencia || 0));
+      grupo.efectivo = redondearMonto(grupo.efectivo + Number(pago.monto_efectivo || 0));
+      grupo.total = redondearMonto(grupo.total + Number(pago.total || 0));
+    });
+
+    return grupos;
+  }
+
+  function marcaDeTiempo() {
+    const ahora = new Date();
+    return fechaCorta(ahora) + ' · ' + horaCorta(ahora);
+  }
+
+  async function generarExcel(boton, tarea) {
+    if (!boton) return;
+
+    const contenido = boton.innerHTML;
+    boton.dataset.ocupado = '1';
+    boton.disabled = true;
+    boton.innerHTML = '<svg class="icono"><use href="#i-reloj"/></svg>' +
+      '<span class="oculto-angosto">Generando…</span>';
+
+    try {
+      const resultado = await tarea();
+      await guardarBytes(resultado.bytes, resultado.nombre, resultado.opciones);
     } catch (error) {
-      mostrarToast(error && error.message ? error.message : 'No se pudo exportar la base de datos.', 'error', 6000);
+      const mensaje = String((error && error.message) || '');
+      if (!/cancel/i.test(mensaje)) {
+        mostrarToast(mensaje || 'No se pudo generar la planilla de Excel.', 'error', 7000);
+      }
+    } finally {
+      boton.innerHTML = contenido;
+      delete boton.dataset.ocupado;
+      boton.disabled = false;
+      actualizarBotonExportar('#btn-exportar-reservas', reservasActuales.length > 0);
+      actualizarBotonExportar('#btn-exportar-pagos', pagosActuales.length > 0);
     }
+  }
+
+  async function exportarReservasExcel() {
+    if (!window.EXPORTAR) {
+      mostrarToast('No se pudo cargar el generador de Excel.', 'error', 6000);
+      return;
+    }
+    if (!reservasActuales.length) {
+      mostrarToast('No hay reservas para exportar con los filtros actuales.', 'info');
+      return;
+    }
+
+    await generarExcel($('#btn-exportar-reservas'), async function () {
+      const bytes = await window.EXPORTAR.reservas({
+        filas: filasReservasExcel(),
+        resumen: resumenFiltrosReservas(),
+        generado: marcaDeTiempo()
+      });
+
+      return {
+        bytes: bytes,
+        nombre: 'reservas-' + fechaArchivo(new Date()) + '.xlsx',
+        opciones: {
+          tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          descripcion: 'Planilla de reservas de Mesa & Evento',
+          descargada: 'Planilla de reservas descargada.',
+          elegir: 'Elegí dónde guardar la planilla de reservas en el menú de Android.',
+          guardada: 'Planilla de reservas guardada en Documentos/Mesa y Evento.'
+        }
+      };
+    });
+  }
+
+  async function exportarPagosExcel() {
+    if (!window.EXPORTAR) {
+      mostrarToast('No se pudo cargar el generador de Excel.', 'error', 6000);
+      return;
+    }
+    if (!pagosActuales.length) {
+      mostrarToast('No hay pagos para exportar.', 'info');
+      return;
+    }
+
+    await generarExcel($('#btn-exportar-pagos'), async function () {
+      const bytes = await window.EXPORTAR.pagos({
+        grupos: gruposPagosExcel(),
+        totales: DB.estadisticasPagos(),
+        resumen: 'Todos los pagos registrados, agrupados por día',
+        generado: marcaDeTiempo()
+      });
+
+      return {
+        bytes: bytes,
+        nombre: 'pagos-' + fechaArchivo(new Date()) + '.xlsx',
+        opciones: {
+          tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          descripcion: 'Planilla de pagos de Mesa & Evento',
+          descargada: 'Planilla de pagos descargada.',
+          elegir: 'Elegí dónde guardar la planilla de pagos en el menú de Android.',
+          guardada: 'Planilla de pagos guardada en Documentos/Mesa y Evento.'
+        }
+      };
+    });
   }
 
   async function importarBase(evento) {
