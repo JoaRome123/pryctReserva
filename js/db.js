@@ -508,23 +508,19 @@
     }
 
     const fecha = String(datos.fecha_reserva ?? '').trim();
-    const partes = fecha.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-    if (!partes) throw new Error('Elegí una fecha y hora válidas para la reserva.');
+    const partes = fecha.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!partes) throw new Error('Elegí una fecha válida para la reserva.');
     const anio = Number(partes[1]);
     const mes = Number(partes[2]);
     const dia = Number(partes[3]);
-    const hora = Number(partes[4]);
-    const minuto = Number(partes[5]);
-    const fechaObj = new Date(anio, mes - 1, dia, hora, minuto);
+    const fechaObj = new Date(anio, mes - 1, dia);
     if (
       Number.isNaN(fechaObj.getTime()) ||
       fechaObj.getFullYear() !== anio ||
       fechaObj.getMonth() !== mes - 1 ||
-      fechaObj.getDate() !== dia ||
-      fechaObj.getHours() !== hora ||
-      fechaObj.getMinutes() !== minuto
+      fechaObj.getDate() !== dia
     ) {
-      throw new Error('La fecha y hora ingresadas no son válidas.');
+      throw new Error('La fecha ingresada no es válida.');
     }
 
     const personas = Number(datos.personas);
@@ -543,7 +539,7 @@
 
     return {
       id_cliente: idCliente,
-      fecha_reserva: partes[1] + '-' + partes[2] + '-' + partes[3] + 'T' + partes[4] + ':' + partes[5],
+      fecha_reserva: partes[1] + '-' + partes[2] + '-' + partes[3],
       tipo: tipo,
       personas: personas,
       detalle: detalle,
@@ -719,7 +715,7 @@
       SELECT
         c.*,
         COUNT(r.id_reserva) AS total_reservas,
-        COALESCE(SUM(CASE WHEN r.estado <> 'cancelada' AND datetime(r.fecha_reserva) >= datetime('now','localtime') THEN 1 ELSE 0 END), 0) AS proximas
+        COALESCE(SUM(CASE WHEN r.estado <> 'cancelada' AND date(r.fecha_reserva) >= date('now','localtime') THEN 1 ELSE 0 END), 0) AS proximas
       FROM clientes c
       LEFT JOIN reservas r ON r.id_cliente = c.id_cliente
       ${donde}
@@ -797,9 +793,9 @@
       condiciones.push('r.estado = ?');
       parametros.push(op.estado);
     }
-    if (op.fecha === 'proximas') condiciones.push("datetime(r.fecha_reserva) >= datetime('now','localtime')");
+    if (op.fecha === 'proximas') condiciones.push("date(r.fecha_reserva) >= date('now','localtime')");
     if (op.fecha === 'hoy') condiciones.push("date(r.fecha_reserva) = date('now','localtime')");
-    if (op.fecha === 'pasadas') condiciones.push("datetime(r.fecha_reserva) < datetime('now','localtime')");
+    if (op.fecha === 'pasadas') condiciones.push("date(r.fecha_reserva) < date('now','localtime')");
 
     const texto = limpiar(op.busqueda).toLowerCase();
     if (texto) {
@@ -848,10 +844,10 @@
       ORDER BY
         CASE
           WHEN r.estado = 'cancelada' THEN 2
-          WHEN datetime(r.fecha_reserva) < datetime('now','localtime') THEN 1
+          WHEN date(r.fecha_reserva) < date('now','localtime') THEN 1
           ELSE 0
         END,
-        CASE WHEN datetime(r.fecha_reserva) < datetime('now','localtime') THEN r.fecha_reserva END DESC,
+        CASE WHEN date(r.fecha_reserva) < date('now','localtime') THEN r.fecha_reserva END DESC,
         r.fecha_reserva ASC
     `, parametros);
   }
@@ -865,18 +861,18 @@
     const resultado = fila(`
       SELECT
         (SELECT COUNT(*) FROM reservas
-          WHERE estado <> 'cancelada' AND datetime(fecha_reserva) >= datetime('now','localtime')) AS proximas,
+          WHERE estado <> 'cancelada' AND date(fecha_reserva) >= date('now','localtime')) AS proximas,
         (SELECT COALESCE(SUM(personas), 0) FROM reservas
-          WHERE estado <> 'cancelada' AND datetime(fecha_reserva) >= datetime('now','localtime')) AS comensales,
+          WHERE estado <> 'cancelada' AND date(fecha_reserva) >= date('now','localtime')) AS comensales,
         (SELECT COUNT(*) FROM reservas
-          WHERE tipo = 'evento' AND estado <> 'cancelada' AND datetime(fecha_reserva) >= datetime('now','localtime')) AS eventos,
+          WHERE tipo = 'evento' AND estado <> 'cancelada' AND date(fecha_reserva) >= date('now','localtime')) AS eventos,
         (SELECT COUNT(*) FROM clientes) AS clientes,
         (SELECT COUNT(*) FROM reservas) AS reservas,
         (SELECT COUNT(*) FROM combos) AS combos,
         (SELECT COUNT(*) FROM pagos) AS pagos,
         (SELECT COALESCE(SUM(rc.cantidad), 0) FROM reserva_combos rc
            JOIN reservas r ON r.id_reserva = rc.id_reserva
-          WHERE r.estado <> 'cancelada' AND datetime(r.fecha_reserva) >= datetime('now','localtime')) AS combos_proximos
+          WHERE r.estado <> 'cancelada' AND date(r.fecha_reserva) >= date('now','localtime')) AS combos_proximos
     `) || {};
     return {
       proximas: Number(resultado.proximas || 0),
@@ -1112,8 +1108,7 @@
 
   function fechaLocalISO(fecha) {
     const p = function (n) { return String(n).padStart(2, '0'); };
-    return fecha.getFullYear() + '-' + p(fecha.getMonth() + 1) + '-' + p(fecha.getDate()) +
-      'T' + p(fecha.getHours()) + ':' + p(fecha.getMinutes());
+    return fecha.getFullYear() + '-' + p(fecha.getMonth() + 1) + '-' + p(fecha.getDate());
   }
 
   function cargarEjemplo() {

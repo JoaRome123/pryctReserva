@@ -476,7 +476,7 @@
     const fecha = parseFechaHora(reserva.fecha_reserva) || new Date();
     const creada = parseFechaHora(reserva.creada_en);
     const cancelada = reserva.estado === 'cancelada';
-    const pasada = fecha.getTime() < Date.now();
+    const pasada = fechaAnteriorAHoy(fecha);
     if (pasada || cancelada) fila.classList.add('reserva-pasada');
 
     /* cliente */
@@ -492,9 +492,9 @@
     /* fecha */
     const celdaFecha = document.createElement('td');
     const cajaFecha = crear('div', 'celda-fecha');
-    cajaFecha.title = 'Reservada para el ' + fechaCorta(fecha) + ' a las ' + horaCorta(fecha) +
+    cajaFecha.title = 'Reservada para el ' + fechaCorta(fecha) +
       (creada ? ' · Registrada el ' + fechaCorta(creada) + ' a las ' + horaCorta(creada) : '');
-    cajaFecha.appendChild(crear('span', 'fecha-principal', fechaCorta(fecha) + ' · ' + horaCorta(fecha)));
+    cajaFecha.appendChild(crear('span', 'fecha-principal', fechaCorta(fecha)));
     const detalleFecha = crear('span', 'fecha-detalle');
     detalleFecha.appendChild(crear('span', 'badge numero', etiquetaRelativa(fecha)));
     if (creada) detalleFecha.appendChild(crear('span', '', 'registrada el ' + fechaCorta(creada)));
@@ -639,9 +639,6 @@
     const fila = document.createElement('tr');
     const creado = parseFechaHora(cliente.creado_en);
 
-    const celdaNumero = document.createElement('td');
-    celdaNumero.appendChild(crear('span', 'badge numero', numeroCliente(cliente.id_cliente)));
-
     const celdaCliente = document.createElement('td');
     const caja = crear('div', 'celda-cliente');
     caja.appendChild(crear('div', 'avatar', iniciales(cliente.nombre, cliente.apellido)));
@@ -657,9 +654,6 @@
     telefono.href = 'tel:' + cliente.telefono.replace(/[^\d+]/g, '');
     telefono.textContent = cliente.telefono;
     celdaTelefono.appendChild(telefono);
-
-    const celdaDocumento = document.createElement('td');
-    celdaDocumento.textContent = cliente.documento;
 
     const celdaReservas = document.createElement('td');
     celdaReservas.className = 'num';
@@ -681,7 +675,7 @@
     acciones.appendChild(botonIcono('eliminar', 'Eliminar cliente', 'eliminar', cliente.id_cliente, true));
     celdaAcciones.appendChild(acciones);
 
-    fila.append(celdaNumero, celdaCliente, celdaTelefono, celdaDocumento, celdaReservas, celdaAcciones);
+    fila.append(celdaCliente, celdaTelefono, celdaReservas, celdaAcciones);
     return fila;
   }
 
@@ -1227,7 +1221,7 @@
       $('#btn-guardar-reserva').textContent = 'Guardar cambios';
 
       const fecha = parseFechaHora(reserva.fecha_reserva);
-      $('#re-fecha').value = fecha ? fechaParaInput(fecha) : '';
+      $('#re-fecha').value = fecha ? fechaDiaParaInput(fecha) : '';
       $('#re-fecha').removeAttribute('min');
       $('#re-personas').value = reserva.personas;
 
@@ -1247,8 +1241,8 @@
       $('#subtitulo-reserva').textContent = 'Asociá una mesa o un evento a un cliente.';
       $('#btn-guardar-reserva').textContent = 'Guardar reserva';
 
-      $('#re-fecha').value = fechaParaInput(proximaFechaSugerida());
-      $('#re-fecha').min = fechaParaInput(new Date());
+      $('#re-fecha').value = fechaDiaParaInput(proximaFechaSugerida());
+      $('#re-fecha').min = fechaDiaParaInput(new Date());
       $('#re-personas').value = 2;
       $('#re-estado').value = 'pendiente';
       $('#nota-registro span').textContent = 'La fecha de registro se completa automáticamente al guardar.';
@@ -1321,12 +1315,12 @@
     const marcado = formulario.querySelector('input[name="re-tipo"]:checked');
 
     if (!idCliente) return fallarCampo('#re-cliente', error, 'Seleccioná un cliente para la reserva.');
-    if (!fechaTexto) return fallarCampo('#re-fecha', error, 'Elegí la fecha y hora de la reserva.');
+    if (!fechaTexto) return fallarCampo('#re-fecha', error, 'Elegí la fecha de la reserva.');
 
     const fecha = parseFechaHora(fechaTexto);
-    if (!fecha) return fallarCampo('#re-fecha', error, 'La fecha y hora ingresadas no son válidas.');
-    if (!esEdicion && fecha.getTime() < Date.now() - 60000) {
-      return fallarCampo('#re-fecha', error, 'La fecha de la reserva no puede ser anterior a este momento.');
+    if (!fecha) return fallarCampo('#re-fecha', error, 'La fecha ingresada no es válida.');
+    if (!esEdicion && fechaAnteriorAHoy(fecha)) {
+      return fallarCampo('#re-fecha', error, 'La fecha de la reserva no puede ser anterior a hoy.');
     }
 
     if (!Number.isInteger(personas) || personas < 1 || personas > 500) {
@@ -1368,7 +1362,7 @@
     abrirConfirmacion({
       titulo: 'Eliminar reserva',
       mensaje: 'Se eliminará la reserva de ' + reserva.nombre + ' ' + reserva.apellido +
-        (fecha ? ' para el ' + fechaCorta(fecha) + ' a las ' + horaCorta(fecha) : '') +
+        (fecha ? ' para el ' + fechaCorta(fecha) : '') +
         '. Esta acción no se puede deshacer.',
       textoAceptar: 'Eliminar reserva',
       alAceptar: function () {
@@ -1519,7 +1513,7 @@
       ? fechaCorta(fechaPago) + ' · ' + horaCorta(fechaPago)
       : '—'));
     if (fechaReserva) {
-      cajaFecha.appendChild(crear('span', 'meta', 'Reserva: ' + fechaCorta(fechaReserva) + ' · ' + horaCorta(fechaReserva)));
+      cajaFecha.appendChild(crear('span', 'meta', 'Reserva: ' + fechaCorta(fechaReserva)));
     }
     celdaFecha.appendChild(cajaFecha);
 
@@ -1649,7 +1643,7 @@
     cliente.appendChild(crear('span', 'nombre-cliente', reserva.apellido + ', ' + reserva.nombre));
     const detalles = [numeroCliente(reserva.id_cliente)];
     const fechaReserva = parseFechaHora(reserva.fecha_reserva);
-    if (fechaReserva) detalles.push('Reserva del ' + fechaCorta(fechaReserva) + ' · ' + horaCorta(fechaReserva));
+    if (fechaReserva) detalles.push('Reserva del ' + fechaCorta(fechaReserva));
     if (reserva.detalle) detalles.push(reserva.detalle);
     cliente.appendChild(crear('span', 'meta', detalles.join(' · ')));
     cabecera.appendChild(cliente);
@@ -1798,7 +1792,7 @@
     abrirConfirmacion({
       titulo: 'Quitar pago',
       mensaje: 'La reserva de ' + reserva.nombre + ' ' + reserva.apellido +
-        (fecha ? ' para el ' + fechaCorta(fecha) + ' a las ' + horaCorta(fecha) : '') +
+        (fecha ? ' para el ' + fechaCorta(fecha) : '') +
         ' dejará de figurar como pagada. Los datos de la reserva se conservan.',
       textoAceptar: 'Quitar pago',
       alAceptar: function () {
@@ -2299,15 +2293,23 @@
       'T' + dosDigitos(fecha.getHours()) + ':' + dosDigitos(fecha.getMinutes());
   }
 
+  function fechaDiaParaInput(fecha) {
+    return fecha.getFullYear() + '-' + dosDigitos(fecha.getMonth() + 1) + '-' + dosDigitos(fecha.getDate());
+  }
+
+  function fechaAnteriorAHoy(fecha) {
+    const ahora = new Date();
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const dia = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    return dia.getTime() < hoy.getTime();
+  }
+
   function fechaArchivo(fecha) {
     return fecha.getFullYear() + '-' + dosDigitos(fecha.getMonth() + 1) + '-' + dosDigitos(fecha.getDate());
   }
 
   function proximaFechaSugerida() {
     const fecha = new Date();
-    fecha.setSeconds(0, 0);
-    fecha.setMinutes(fecha.getMinutes() + 120);
-    fecha.setMinutes(Math.ceil(fecha.getMinutes() / 30) * 30);
-    return fecha;
+    return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
   }
 })();

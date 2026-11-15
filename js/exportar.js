@@ -235,7 +235,7 @@
     const filas = info.filas || [];
     const columnas = [
       { titulo: 'Cliente', ancho: 34, tipo: 'texto' },
-      { titulo: 'Reservado para', ancho: 19, tipo: 'fecha' },
+      { titulo: 'Reservado para', ancho: 19, tipo: 'fecha', soloFecha: true },
       { titulo: 'Tipo', ancho: 10, tipo: 'texto' },
       { titulo: 'Personas', ancho: 10, tipo: 'entero' },
       { titulo: 'Combos', ancho: 9, tipo: 'entero' },
@@ -305,7 +305,7 @@
     const columnas = [
       { titulo: 'Fecha del pago', ancho: 19, tipo: 'fecha' },
       { titulo: 'Cliente', ancho: 30, tipo: 'texto' },
-      { titulo: 'Reserva', ancho: 19, tipo: 'fecha' },
+      { titulo: 'Reserva', ancho: 19, tipo: 'fecha', soloFecha: true },
       { titulo: 'Tipo', ancho: 10, tipo: 'texto' },
       { titulo: 'Personas', ancho: 10, tipo: 'entero' },
       { titulo: 'Combos', ancho: 38, tipo: 'texto' },
